@@ -5,9 +5,10 @@ GUIDE = {
 "en": """
 ### 📘 Quick guide
 **1. Choose your data** (page *📂 Data* → *Source*)
-- **Example** – the school sample files, ready to try.
-- **Upload** – your own CSV/XLSX files (download the templates first; column names can be English or Arabic). Each file is checked line by line; problems are listed as *file · line N*.
-- **Wizard** – build a school from scratch in guided steps (levels → subjects/rooms → teachers → assignment).
+- **🧭 Setup guide** – 7 steps (levels & classes → subjects & rooms → groups → teachers → windows → assignment → finish). Each step is filled either by answering its questions or by loading its file (📎 in every step). A file loaded in any step fills its own section; if that section is already filled you are asked before it is replaced.
+- **📂 Upload from computer** – the same guide with a panel on top that loads everything at once (one zip, e.g. the one downloaded at the end of the guide, or several CSV/XLSX files). Missing sections are created manually in their step. Files are checked line by line (*file · line N*).
+- **🧪 Sample data** – the school example, ready to try.
+- The **approved curriculum 2026/2027** is used unless you load your own curriculum file.
 
 **2. Assignment** (page *👥 Assignment*) – check the teacher ↔ class plan, the totals and the remedial sessions.
 
@@ -22,9 +23,10 @@ GUIDE = {
 "ar": """
 ### 📘 دليل سريع
 **1. اختر البيانات** (صفحة *📂 المعطيات* ← *المصدر*)
-- **المثال** – ملفات المؤسسة الجاهزة للتجربة.
-- **تحميل** – ملفاتك CSV/XLSX (حمّل النماذج أولًا؛ أسماء الأعمدة بالعربية أو الإنجليزية). يُفحص كل ملف سطرًا بسطر وتُعرض المشاكل بصيغة *الملف · السطر N*.
-- **المساعد** – إنشاء مؤسسة من الصفر بخطوات موجهة (المستويات ← المواد/القاعات ← الأساتذة ← الإسناد).
+- **🧭 دليل الإعداد** – 7 خطوات (المستويات والأفواج ← المواد والقاعات ← التفويج ← الأساتذة ← النوافذ ← الإسناد ← إنهاء). تُملأ كل خطوة بالإجابة عن أسئلتها أو بتحميل ملفها (📎 في كل خطوة). أي ملف يُحمَّل في أي خطوة يملأ قسمه الخاص، وإذا كان القسم مملوءًا يُطلب تأكيدك قبل الاستبدال.
+- **📂 تحميل من الحاسوب** – نفس الدليل مع لوحة في الأعلى لتحميل كل الملفات دفعة واحدة (ملف zip واحد، مثل المنزَّل في نهاية الدليل، أو عدة ملفات CSV/XLSX). تُنشأ الأقسام الناقصة يدويًا في خطوتها. يُفحص كل ملف سطرًا بسطر (*الملف · السطر N*).
+- **🧪 معطيات تجريبية** – مثال المؤسسة الجاهز للتجربة.
+- يُستعمل **المنهاج المعتمد لسنة 2026/2027** ما لم تحمّل ملف منهاج خاص بك.
 
 **2. الإسناد** (صفحة *👥 الإسناد*) – راجع إسناد الأساتذة على الأفواج والمجاميع وحصص الاستدراك.
 

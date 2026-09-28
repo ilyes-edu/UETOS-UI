@@ -3,45 +3,77 @@
 <head>
 <meta charset="utf-8">
 <style>
+  /* UETOS UI kit - restyled single-timetable editor. Only visual rules changed; the <script> below is the original. */
+  :root { --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif; --accent: #1f6fa8;
+          --bg: #ffffff; --surface: #f5f8fc; --surface-2: #ebf1f8; --line: #e1e8f0; --line-2: #c9d6e3; --text: #162536; --muted: #62758a;
+          --green: #1e9e57; --green-bg: #e1f5e8; --yellow: #c58b00; --yellow-bg: #fff2c9; --red: #d64545; --red-bg: #fde9e9;
+          --blue: #3b6fd6; --blue-bg: #e4ecfc; --violet: #6d51c9; --violet-bg: #efeafd; --win: #c96a12; --win-a: #fff5e6; --win-b: #ffe8c7; }
+  :root[data-theme="dark"] { --bg: #0f1823; --surface: #142030; --surface-2: #1a283b; --line: #22324a; --line-2: #31455f; --text: #e5edf6; --muted: #93a5ba;
+          --green-bg: rgba(30,158,87,.22); --yellow-bg: rgba(197,139,0,.22); --red-bg: rgba(214,69,69,.2); --blue-bg: rgba(59,111,214,.24);
+          --violet-bg: rgba(109,81,201,.26); --win-a: rgba(201,106,18,.12); --win-b: rgba(201,106,18,.22); }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; font-size: 13px; color: #262730; }
-  #grid { display: grid; grid-template-columns: 90px repeat(5, 1fr); gap: 3px; user-select: none; }
-  .hdr { font-weight: 700; text-align: center; padding: 6px 0; background: #f0f2f6; border-radius: 6px; }
-  .slotlbl { display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 6px; font-weight: 600; font-size: 12px; }
-  .lunch { grid-column: 1 / span 6; text-align: center; font-size: 11px; color: #888; background: repeating-linear-gradient(45deg,#fafafa,#fafafa 6px,#f0f0f0 6px,#f0f0f0 12px); border-radius: 4px; height: 16px; line-height: 16px; }
-  .cell { min-height: 54px; border: 1px dashed #d6d6d6; border-radius: 6px; transition: background .08s; }
-  .cell.off { background: #f7f7f7; }
-  .stack { z-index: 2; display: flex; flex-direction: column; gap: 1px; pointer-events: none; }
-  .stack .card { pointer-events: auto; margin: 1px 2px; padding: 2px 6px; }
+  body { margin: 0; padding: 2px 2px 6px; font-family: var(--font); font-size: 13px; color: var(--text); background: transparent; -webkit-font-smoothing: antialiased; }
+  #grid { display: grid; grid-template-columns: 96px repeat(5, 1fr); gap: 4px; user-select: none; padding: 10px; background: var(--bg);
+          border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 1px 2px rgba(15,35,60,.05), 0 8px 24px rgba(15,35,60,.07); }
+  .hdr { font-weight: 700; text-align: center; padding: 8px 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+         font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #grid > .hdr:first-child { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .slotlbl { display: flex; align-items: center; justify-content: center; text-align: center; padding: 2px 4px; background: var(--surface);
+             border: 1px solid var(--line); border-radius: 10px; font-weight: 600; font-size: 11.5px; color: var(--muted); }
+  .lunch { grid-column: 1 / span 6; text-align: center; font-size: 11px; color: var(--muted); background: repeating-linear-gradient(45deg, var(--surface) 0 6px, var(--surface-2) 6px 12px); border-radius: 8px; height: 18px; line-height: 18px; }
+  .cell { min-height: 58px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--bg); transition: background .1s, border-color .1s; }
+  .cell:hover { border-color: var(--accent); }
+  .cell.off { background: repeating-linear-gradient(45deg, var(--surface) 0 5px, var(--surface-2) 5px 10px); border-style: solid; border-color: var(--line); }
+  .stack { z-index: 2; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+  .stack .card { pointer-events: auto; margin: 1px 2px; padding: 3px 7px; }
   .card.mini .t { font-size: 11px; } .card.mini .s { font-size: 10px; }
-  .cell.green  { background: #c8f7c5; border: 2px solid #2ea043; }
-  .cell.yellow { background: #fff3b0; border: 2px solid #d4a400; }
-  .cell.red    { background: #ffd6d6; border: 2px solid #e5534b; }
-  .cell.current{ background: #dbe8ff; border: 2px solid #4a7bd0; }
-  .cell.hover  { outline: 3px solid #262730; outline-offset: -3px; }
-  .card { z-index: 2; margin: 2px; padding: 5px 7px; border-radius: 7px; cursor: grab; color: #fff;
-          box-shadow: 0 1px 3px rgba(0,0,0,.25); overflow: hidden; line-height: 1.25; }
+  .cell.green  { background: var(--green-bg); border: 2px solid var(--green); }
+  .cell.yellow { background: var(--yellow-bg); border: 2px solid var(--yellow); }
+  .cell.red    { background: var(--red-bg); border: 2px solid color-mix(in srgb, var(--red) 55%, transparent); }
+  .cell.current{ background: var(--blue-bg); border: 2px solid var(--blue); }
+  .cell.hover  { outline: 3px solid var(--text); outline-offset: -3px; }
+  .card { position: relative; z-index: 2; margin: 3px; padding: 6px 9px; border-radius: 10px; cursor: grab; color: #fff;
+          box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 4px 10px rgba(15,35,60,.1); overflow: hidden; line-height: 1.3;
+          transition: transform .12s, box-shadow .12s, opacity .12s; }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,.2), 0 10px 20px rgba(15,35,60,.14); }
   .card.locked { cursor: not-allowed; opacity: .8; background-image: repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(255,255,255,.15) 5px,rgba(255,255,255,.15) 10px); }
-  .card.sel { outline: 3px solid #262730; }
+  .card.locked::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(45deg, transparent 0 5px, rgba(255,255,255,.16) 5px 10px); }
+  .card.sel { outline: 3px solid var(--text); outline-offset: 1px; }
   .card .t { font-weight: 700; font-size: 13px; }
   .card .s { font-size: 11px; opacity: .92; }
   .dragging .card { pointer-events: none; }
   .picking .card:not(.sel):not(.src) { opacity: .35; }
   .picking .card.sel { opacity: .9; }
   .dragging .card.src { opacity: .35; }
-  .cell.win { background: repeating-linear-gradient(-45deg,#fff4e0,#fff4e0 6px,#ffe2b3 6px,#ffe2b3 12px); border: 1px solid #f0a020; }
-  .cell.win::after { content: attr(data-win); display: block; font-size: 10px; color: #b36b00; text-align: center; padding-top: 18px; }
-  .cell.target { background: #e8e0ff; border: 2px solid #7b5cd6; }
+  .cell.win { background: repeating-linear-gradient(-45deg, var(--win-a) 0 6px, var(--win-b) 6px 12px); border: 1px solid var(--win); }
+  .cell.win::after { content: attr(data-win); display: block; font-size: 10px; color: var(--win); text-align: center; padding-top: 18px; font-weight: 600; }
+  .cell.target { background: var(--violet-bg); border: 2px solid var(--violet); }
   .targeting .card { opacity: .3; }
-  .targeting .card.cand-green  { opacity: 1; outline: 4px solid #2ea043; cursor: pointer; }
-  .targeting .card.cand-yellow { opacity: 1; outline: 4px solid #d4a400; cursor: pointer; }
-  .opt { display: inline-block; margin: 3px 4px 0 0; padding: 3px 8px; border-radius: 12px; cursor: pointer; border: 1px solid #ccc; background: #fff; }
-  .opt.green { border-color: #2ea043; } .opt.yellow { border-color: #d4a400; }
-  .opt:hover { background: #f5f5f5; }
-  #bar { margin-top: 8px; min-height: 38px; padding: 8px 10px; border-radius: 6px; background: #f0f2f6; font-size: 13px; }
-  .legend span { display: inline-block; margin-inline-end: 12px; }
-  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-inline-end: 4px; vertical-align: -1px; }
+  .targeting .card.cand-green  { opacity: 1; outline: 3px solid var(--green); outline-offset: 1px; cursor: pointer; }
+  .targeting .card.cand-yellow { opacity: 1; outline: 3px solid var(--yellow); outline-offset: 1px; cursor: pointer; }
+  .opt { display: inline-block; margin-block-start: 5px; margin-inline-end: 5px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+         border: 1px solid var(--line-2); background: var(--bg); color: var(--text); font-size: 12px; transition: background .1s; }
+  .opt.green { border-color: var(--green); } .opt.yellow { border-color: var(--yellow); }
+  .opt:hover { background: var(--surface-2); }
+  #bar { margin-top: 8px; min-height: 44px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; line-height: 1.55; }
+  .legend:not(:empty) + #msg:not(:empty) { margin-top: 6px; }
+  .legend span { display: inline-flex; align-items: center; margin-inline-end: 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-inline-end: 5px; vertical-align: -1px; }
+  @media (prefers-reduced-motion: reduce) { .card, .cell, .opt { transition: none; } .card:hover { transform: none; } }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<script>
+/* UETOS UI kit: follow the Streamlit theme (light/dark + primary colour). Visual only - the original script below is unchanged. */
+window.addEventListener("message", function (e) {
+  var d = e.data, th = d && d.type === "streamlit:render" ? d.theme : null;
+  if (!th) return;
+  var root = document.documentElement;
+  root.setAttribute("data-theme", th.base === "dark" ? "dark" : "light");
+  if (typeof th.primaryColor === "string" && /^[#\w(),.%\s-]+$/.test(th.primaryColor)) root.style.setProperty("--accent", th.primaryColor);
+});
+</script>
 </head>
 <body>
 <div id="grid"></div>

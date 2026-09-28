@@ -12,6 +12,7 @@ import os
 import pandas as pd
 
 import i18n
+import datai18n as dl
 from i18n import t
 import assignment_planner as ap
 
@@ -45,11 +46,39 @@ STEPS = ["levels", "subjects", "grouping", "teachers", "windows", "assign", "fin
 
 # ------------------------------------------------------------------ strings (merged into i18n.S)
 i18n.S.update({
-    "src_wizard": ("🧭 Setup guide (no files)", "🧭 دليل الإعداد (بدون ملفات)"),
+    "src_wizard": ("🧭 Setup guide", "🧭 دليل الإعداد"),
     "wz_title": ("🧭 School setup guide", "🧭 دليل إعداد المؤسسة"),
     "wz_intro": ("Answer a few simple questions – the default curriculum does the rest. Every answer can be changed later.",
                  "أجب عن أسئلة بسيطة، والمنهاج الافتراضي يتكفّل بالباقي. يمكن تغيير كل إجابة لاحقًا."),
     "wz_step": ("Step {i} of {n}", "الخطوة {i} من {n}"),
+    "wz_intro_files": ("Each step can be filled by answering its questions or by loading its file. A file can be loaded "
+                       "in any step: it fills its own section.",
+                       "يمكن ملء كل خطوة بالإجابة عن أسئلتها أو بتحميل ملفها. يمكن تحميل أي ملف في أي خطوة: يملأ القسم الخاص به."),
+    "wz_sec_classes": ("Classes", "الأفواج"), "wz_sec_subjects": ("Curriculum", "المنهاج"),
+    "wz_sec_rooms": ("Rooms", "القاعات"), "wz_sec_rules": ("Split rules", "قواعد التفويج"),
+    "wz_sec_teachers": ("Teachers", "الأساتذة"), "wz_sec_inspections": ("Pedagogical windows", "النوافذ البيداغوجية"),
+    "wz_sec_assign": ("Assignment", "الإسناد"),
+    "wz_from_file": ("📄 **{s}** – from file «{f}» ({n} lines). The questions of this section are replaced by the file.",
+                     "📄 **{s}** – من الملف «{f}» ({n} سطر). ملف هذا القسم يعوّض أسئلته."),
+    "wz_manual_btn": ("✏️ Create manually instead", "✏️ الإنشاء يدويًا بدلًا منه"),
+    "wz_step_upload": ("📎 Load a file (for this step or any other section – zip accepted)",
+                       "📎 تحميل ملف (لهذه الخطوة أو لأي قسم آخر – يُقبل zip)"),
+    "wz_filled_other": ("«{f}» filled the section {s} (step {i}).", "«{f}» ملأ قسم {s} (الخطوة {i})."),
+    "wz_filled_here": ("«{f}» filled the section {s}.", "«{f}» ملأ قسم {s}."),
+    "wz_not_recog": ("«{f}» was not recognised: {e}", "لم يُتعرّف على «{f}»: {e}"),
+    "wz_confirm_over": ("⚠️ The section **{s}** is already filled ({o}). Replace it with «{f}»?",
+                        "⚠️ قسم **{s}** مملوء مسبقًا ({o}). هل تريد استبداله بـ«{f}»؟"),
+    "wz_by_file": ("file «{f}»", "الملف «{f}»"),
+    "wz_by_manual": ("manual assignment", "إسناد يدوي"),
+    "wz_replace": ("✅ Replace", "✅ استبدال"), "wz_keep": ("✖ Keep the current one", "✖ الإبقاء على الحالي"),
+    "wz_bulk_title": ("📂 Load all your files at once", "📂 تحميل كل ملفاتك دفعة واحدة"),
+    "wz_bulk_help": ("One zip with all the files (e.g. downloaded from the setup guide), or several CSV / Excel files. "
+                     "Each file fills its step; the missing sections can be created manually in their step.",
+                     "ملف zip واحد يضم كل الملفات (مثلًا المنزَّل من دليل الإعداد)، أو عدة ملفات CSV / Excel. "
+                     "يملأ كل ملف خطوته، ويمكن إنشاء الأقسام الناقصة يدويًا في خطوتها."),
+    "wz_bulk_state": ("From files: {a} · To create manually (questions): {b}", "من الملفات: {a} · للإنشاء يدويًا (أسئلة): {b}"),
+    "wz_assign_extra": ("{n} line(s) of the assignment file do not exist in the curriculum and are ignored: {x}",
+                        "{n} سطر من ملف الإسناد غير موجود في المنهاج وتم تجاهله: {x}"),
     "wz_s_levels": ("Levels & classes", "المستويات والأفواج"),
     "wz_s_subjects": ("Subjects & rooms", "المواد والقاعات"),
     "wz_s_grouping": ("Groups", "التفويج"),
@@ -170,11 +199,30 @@ def _ans(ss):
 
 
 # ------------------------------------------------------------------ pure logic
+STEP_OF = {"classes": "levels", "subjects": "levels", "rooms": "subjects", "rules": "grouping", "teachers": "teachers",
+           "inspections": "windows", "assign": "assign"}
+
+
+def file_of(a, k):
+    """{'name', 'records'} when the section k comes from a loaded file, else None."""
+    if k == "subjects":
+        return {"name": a.get("curriculum_name", "?"), "records": a["curriculum"]} if a.get("curriculum") else None
+    return (a.get("files") or {}).get(k)
+
+
+def _file_df(a, k):
+    f = file_of(a, k)
+    return pd.DataFrame(f["records"]) if f and f.get("records") is not None else None
+
+
 def build_frames(a):
-    """answers -> dict of data frames in the application's formats (without teachers)."""
+    """answers (+ loaded files) -> dict of data frames in the application's formats (without teachers)."""
     classes = pd.DataFrame([{"Class_ID": f"{l}{i}", "Level": l}
                             for l in LEVELS for i in range(1, int(a["levels"].get(l, 0)) + 1)])
-    active = [l for l in LEVELS if int(a["levels"].get(l, 0)) > 0]
+    if file_of(a, "classes"):
+        classes = _file_df(a, "classes")[["Class_ID", "Level"]].astype(str)
+    active = list(dict.fromkeys(classes["Level"])) if file_of(a, "classes") else \
+        [l for l in LEVELS if int(a["levels"].get(l, 0)) > 0]
     base = pd.read_csv(BASE_CURRICULUM)
     base = base[~base["Subject_Code"].isin(["MUSIC", "ART", "AMAZIGH", "INFO"])]
     extra = []
@@ -188,8 +236,14 @@ def build_frames(a):
         if l in a["info_levels"]:
             extra.append((l, "INFO", 0, 0, 2, 0, "computer_lab"))
     cur = pd.concat([base, pd.DataFrame(extra, columns=base.columns)], ignore_index=True)
+    if a.get("curriculum"):                             # the school's own curriculum file, used as it is
+        cur = _file_df(a, "subjects")
+        for c in ["Hrs_Cours", "Hrs_TD", "Hrs_TP", "Hrs_Practice"]:
+            cur[c] = pd.to_numeric(cur[c], errors="coerce").fillna(0) if c in cur else 0
+        if "Required_Room_Type" not in cur:
+            cur["Required_Room_Type"] = "classroom"
     cur = cur[cur["Level"].isin(active)]
-    if a["labs"] != "dedicated":
+    if a["labs"] != "dedicated" and not a.get("curriculum"):
         cur.loc[cur["Subject_Code"].isin(["PHYS", "SCIENCE"]), "Required_Room_Type"] = "classroom"
     order = {s: i for i, s in enumerate(["ARABIC", "AMAZIGH", "ISLAMIC", "MATH", "FRENCH", "ENGLISH", "PHYS", "SCIENCE",
                                          "HISTGEO", "INFO", "MUSIC", "ART", "SPORT"])}
@@ -231,7 +285,170 @@ def build_frames(a):
             "Description": f"{s} coordination"} for s, d in a["windows"].items()
            if s in subjects and d is not None and int(d) >= 0]
     windows = pd.DataFrame(win, columns=["Subject_Code", "Day_Index", "Blocked_Slots", "Description"])
-    return {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows}
+    out = {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows}
+    for k in ("rooms", "rules", "inspections"):
+        if file_of(a, k):
+            out[k] = _file_df(a, k)
+    return out
+
+
+# ------------------------------------------------------------------ files -> sections
+def _records(df):
+    return json.loads(df.to_json(orient="records", force_ascii=False))
+
+
+def teachers_from_staff(df):
+    return [{"Name": str(r["Teacher_ID"]), "Subject": str(r["Qualified_Subjects"]).split(";")[0].strip(),
+             "Mumayaz": False, "Remedial": False,
+             "Max": int(r["Max_Weekly_Hours"]) if pd.notna(r.get("Max_Weekly_Hours")) else None}
+            for _, r in df.iterrows()]
+
+
+def teachers_from_assign(p):
+    a_ = p["assignment"]
+    mx = dict(zip(p["teachers"]["Teacher_ID"], p["teachers"]["Max_Weekly_Hours"])) if "teachers" in p else {}
+    rem = p.get("remedial") or {}
+    out = []
+    for n, g in a_.groupby("Teacher", sort=False):
+        subj = g.groupby("Subject")["Hours"].sum().idxmax()
+        out.append({"Name": str(n), "Subject": str(subj), "Mumayaz": False, "Remedial": int(rem.get(n, 0) or 0) > 0,
+                    "Max": int(mx[n]) if n in mx and pd.notna(mx[n]) else int(g["Hours"].sum() + int(rem.get(n, 0) or 0))})
+    return out
+
+
+def is_filled(ss, a, k):
+    """Text describing what already fills section k (file / manual assignment), or None."""
+    f = file_of(a, k)
+    if f:
+        return t("wz_by_file", f=f.get("name", "?"))
+    if k == "teachers" and file_of(a, "assign"):
+        return t("wz_by_file", f=file_of(a, "assign").get("name", "?"))
+    if k == "assign" and ss.get("wz_assign_touched"):
+        return t("wz_by_manual")
+    return None
+
+
+def apply_item(ss, a, it):
+    k, name = it["kind"], it["name"]
+    files = a.setdefault("files", {})
+    if k == "subjects":
+        a["curriculum"] = _records(it["df"]); a["curriculum_name"] = name
+    elif k in ("classes", "rooms", "rules", "inspections"):
+        files[k] = {"name": name, "records": _records(it["df"])}
+    elif k == "teachers":
+        files["teachers"] = {"name": name, "records": None}
+        ss["wz_teachers"] = teachers_from_staff(it["df"]); ss.pop("wz_assign", None); ss.pop("wz_assign_touched", None)
+    elif k == "assign":
+        p = it["assign"]
+        files["assign"] = {"name": name, "records": None,
+                           "hours": {f"{r.Class}|{r.Subject}": int(r.Hours) for r in p["assignment"].itertuples()},
+                           "remedial": {str(k_): int(v) for k_, v in (p.get("remedial") or {}).items() if int(v or 0) > 0}}
+        files["teachers"] = {"name": name, "records": None}
+        ss["wz_teachers"] = teachers_from_assign(p)
+        ss["wz_assign"] = {(r.Class, r.Subject): str(r.Teacher) for r in p["assignment"].itertuples()}
+        ss.pop("wz_assign_touched", None)
+    ss.pop("wz_counts", None) if k in ("teachers", "assign") else None
+
+
+def remove_file(ss, a, k):
+    files = a.setdefault("files", {})
+    if k == "subjects":
+        a.pop("curriculum", None); a.pop("curriculum_name", None)
+    else:
+        files.pop(k, None)
+    if k in ("teachers", "assign"):
+        files.pop("teachers", None); files.pop("assign", None)
+        for x in ("wz_teachers", "wz_assign", "wz_counts", "wz_assign_touched"):
+            ss.pop(x, None)
+
+
+def handle_uploads(st, ss, a, files, frames, here=None):
+    """Loaded files -> sections (confirmation first when a section is already filled)."""
+    import importer
+    items = importer.read_uploads(files, set(frames["subjects"]["Subject_Code"]), set(frames["classes"]["Class_ID"]))
+    ok, batch = [], set()
+    order = {k: i for i, k in enumerate(importer.KINDS)}          # staff before assignment (it defines teachers)
+    for it in sorted(items, key=lambda x: order.get(x["kind"], 99)):
+        if it["kind"] is None:
+            st.error(t("wz_not_recog", f=it["name"], e=it.get("error") or "?")); continue
+        same_batch = it["kind"] in batch or (it["kind"] == "assign" and "teachers" in batch)
+        batch.add(it["kind"])
+        if is_filled(ss, a, it["kind"]) and not same_batch:
+            ss.setdefault("wz_pending", []).append(it); continue
+        apply_item(ss, a, it); ok.append(it)
+    for it in ok:
+        sec = t("wz_sec_" + it["kind"])
+        step_i = STEPS.index(STEP_OF[it["kind"]]) + 1
+        ss.setdefault("wz_msgs", []).append(t("wz_filled_here", f=it["name"], s=sec) if STEP_OF[it["kind"]] == here
+                                            else t("wz_filled_other", f=it["name"], s=sec, i=step_i))
+    ss["wz_val"] = [(it["name"], it["kind"], it["df"]) for it in ok if it.get("df") is not None]
+    return items
+
+
+def _uploader(st, ss, a, frames, key, label, here=None, help_=None):
+    ups = st.file_uploader(label, type=["csv", "xlsx", "xls", "zip"], accept_multiple_files=True, key=key, help=help_)
+    seen = ss.setdefault("wz_up_seen", {})
+    new = [u for u in ups or [] if seen.get(f"{key}:{u.name}") != u.size]
+    if new:
+        for u in new:
+            seen[f"{key}:{u.name}"] = u.size
+        handle_uploads(st, ss, a, new, frames, here)
+        st.rerun()
+
+
+def _pending(st, ss, a):
+    """Confirmation for files that would overwrite a filled section."""
+    pend = ss.get("wz_pending") or []
+    if not pend:
+        return
+    it = pend[0]
+    with st.container(border=True):
+        st.warning(t("wz_confirm_over", s=t("wz_sec_" + it["kind"]), o=is_filled(ss, a, it["kind"]) or "—", f=it["name"]))
+        c1, c2, _ = st.columns([1, 1, 3])
+        if c1.button(t("wz_replace"), key="wz_pend_yes", type="primary"):
+            apply_item(ss, a, it); pend.pop(0)
+            ss.setdefault("wz_msgs", []).append(t("wz_filled_here", f=it["name"], s=t("wz_sec_" + it["kind"])))
+            st.rerun()
+        if c2.button(t("wz_keep"), key="wz_pend_no"):
+            pend.pop(0); st.rerun()
+
+
+def _file_banner(st, ss, a, k):
+    """'from file' banner of a section with the button back to manual creation.  True when file-backed."""
+    f = file_of(a, k)
+    if not f:
+        return False
+    n = len(f["records"]) if f.get("records") is not None else (len(ss.get("wz_teachers") or []) if k == "teachers"
+                                                               else len(f.get("hours", {})))
+    c1, c2 = st.columns([4, 1])
+    c1.info(t("wz_from_file", s=t("wz_sec_" + k), f=f.get("name", "?"), n=n))
+    if c2.button(t("wz_manual_btn"), key=f"wz_manual_{k}", width="stretch"):
+        remove_file(ss, a, k); st.rerun()
+    return True
+
+
+def _bulk_panel(st, ss, a, frames):
+    import curriculum as curr
+    with st.container(border=True):
+        st.markdown(f"#### {t('wz_bulk_title')}")
+        _uploader(st, ss, a, frames, "wz_bulk", t("wz_bulk_help"))
+        have = [k for k in ["classes", "subjects", "rooms", "rules", "teachers", "inspections", "assign"] if file_of(a, k)]
+        miss = [k for k in ["classes", "rooms", "rules", "teachers", "inspections", "assign"] if k not in have]
+        sep = "، " if i18n.is_ar() else ", "
+        st.caption(t("wz_bulk_state", a=sep.join(t("wz_sec_" + k) for k in have) or "—",
+                     b=sep.join(t("wz_sec_" + k) for k in miss) or "—")
+                   + ("" if file_of(a, "subjects") else "  ·  📘 " + curr.label()))
+        import os as _os
+        sample = _os.path.join(_os.path.dirname(BASE_CURRICULUM))
+        tpl = {k: pd.read_csv(_os.path.join(sample, f)) for k, f in
+               [("classes", "classes.csv"), ("subjects", "curriculum.csv"), ("rooms", "rooms.csv"),
+                ("rules", "split_rules.csv"), ("inspections", "pedagogical_windows.csv")]
+               if _os.path.exists(_os.path.join(sample, f))}
+        c1, c2, _ = st.columns([1, 1, 2])
+        c1.download_button(t("tpl_csv"), dl.to_zip(tpl), f"{t('tpl_name')}_csv.zip", "application/zip", width="stretch",
+                           key="wz_tpl_csv")
+        c2.download_button(t("tpl_xlsx"), dl.to_zip(tpl, fmt="xlsx"), f"{t('tpl_name')}_xlsx.zip", "application/zip",
+                           width="stretch", key="wz_tpl_xlsx")
 
 
 _REQ_CACHE = {}
@@ -295,7 +512,8 @@ def make_teachers(counts, a):
 
 def load_of(tr, a):
     """Teaching capacity (hours of classes) of one teacher row."""
-    full = int(a["base_hours"]) - (int(a["mumayaz_less"]) if tr["Mumayaz"] else 0)
+    full = int(tr["Max"]) if tr.get("Max") else \
+        int(a["base_hours"]) - (int(a["mumayaz_less"]) if tr["Mumayaz"] else 0)
     return full, full - (int(a["rem_hours"]) if tr["Remedial"] else 0)
 
 
@@ -313,7 +531,7 @@ def auto_assign(req, teachers, a, time_limit=3):
     out = {}
     for s, g in req.groupby("Subject"):
         ts = [tr for tr in teachers if tr["Subject"] == s]
-        items = sorted(g.itertuples(), key=lambda r: (r.Level, int(r.Class[3:])))
+        items = sorted(g.itertuples(), key=lambda r: (r.Level, ap._class_key(r.Class)))
         if not ts:
             out.update({(r.Class, s): None for r in items}); continue
         m = cp_model.CpModel()
@@ -352,11 +570,19 @@ def status(req, assign, teachers, a):
 
 def to_plan(req, assign, teachers, a):
     hours = {(r.Class, r.Subject): int(r.Hours) for r in req.itertuples()}
+    fa = file_of(a, "assign")
+    if fa:                                   # hours of the school file (differences are corrected later)
+        for k_, h_ in fa.get("hours", {}).items():
+            c_, s_ = k_.split("|", 1)
+            if (c_, s_) in hours:
+                hours[(c_, s_)] = int(h_)
     rows = [{"Teacher": n, "Post": n, "Class": c, "Subject": s, "Hours": hours[(c, s)]}
             for (c, s), n in assign.items() if n and (c, s) in hours]
     by = {tr["Name"]: tr for tr in teachers}
     used = {r["Teacher"] for r in rows}
     rem = {n: int(a["rem_hours"]) for n in used if by[n]["Remedial"] and int(a["rem_hours"]) > 0}
+    if fa and fa.get("remedial"):
+        rem = {n: int(h) for n, h in fa["remedial"].items() if n in used}
     mx = {n: load_of(by[n], a)[0] for n in used}
     plan = ap.finalize(pd.DataFrame(rows), remedial=rem, max_hours=mx)
     plan["mumayaz"] = [n for n in used if by[n]["Mumayaz"]]
@@ -385,18 +611,35 @@ def load_project(db, ws):
 
 
 # ------------------------------------------------------------------ Streamlit pages
-def render(st, dnd_assign, db=None, ws="demo"):
-    """Draw the guide in the main area.  Returns True when the manager applied the result."""
+def render(st, dnd_assign, db=None, ws="demo", bulk=False):
+    """Draw the guide in the main area.  Returns True when the manager applied the result.
+    bulk=True (Upload mode): a panel on top loads all the files at once; the steps are filled from them."""
     ss = st.session_state
     a = _ans(ss)
     step = ss.setdefault("wz_step", 0)
     st.subheader(t("wz_title"))
-    st.caption(t("wz_intro"))
+    st.caption(t("wz_intro") + " " + t("wz_intro_files"))
+    for m_ in ss.pop("wz_msgs", []):
+        st.toast(m_, icon="📄")
+    if bulk:
+        _bulk_panel(st, ss, a, build_frames(a))
+    _pending(st, ss, a)
+    if ss.get("wz_val"):
+        import validate
+        viss = validate.check_all(ss["wz_val"], build_frames(a))
+        nv = sum(len(v_) for v_ in viss.values())
+        if nv:
+            with st.expander(f"{validate.t('v_title')} ({nv})", expanded=True):
+                for fn_, lst_ in viss.items():
+                    for ln_, msg_ in lst_[:60]:
+                        st.markdown(f"- **{fn_}** · {t('v_line', n=ln_)}: {msg_}")
     labels = [t("wz_s_" + s) for s in STEPS]
     st.progress((step + 1) / len(STEPS), text=t("wz_step", i=step + 1, n=len(STEPS)) + " · " + labels[step])
     cols = st.columns(len(STEPS))
     for i, (c, lab) in enumerate(zip(cols, labels)):
-        if c.button(("● " if i == step else "") + f"{i + 1}. {lab}", key=f"wz_nav{i}", width="stretch",
+        from_file = any(file_of(a, k) for k, s_ in STEP_OF.items() if s_ == STEPS[i])
+        if c.button(("● " if i == step else "") + f"{i + 1}. {lab}" + (" 📄" if from_file else ""), key=f"wz_nav{i}",
+                    width="stretch",
                     type="primary" if i == step else "secondary"):
             ss["wz_step"] = i; st.rerun()
     st.divider()
@@ -404,6 +647,9 @@ def render(st, dnd_assign, db=None, ws="demo"):
     frames = build_frames(a)
     can_next = True
     name = STEPS[step]
+    if name != "finish":
+        with st.expander(t("wz_step_upload"), expanded=False):
+            _uploader(st, ss, a, frames, f"wz_up_{name}", t("wz_step_upload"), here=name)
     if name == "levels":
         _step_levels(st, a)
     elif name == "subjects":
@@ -428,7 +674,39 @@ def render(st, dnd_assign, db=None, ws="demo"):
     return False
 
 
+def _zip_with_assignment(files, plan):
+    """Data files + the assignment in the school format -> one zip that the Upload mode accepts as is."""
+    import io, zipfile
+    from assignment_matrix import build_matrix_xlsx
+    buf = io.BytesIO(dl.to_zip(files))
+    xl = build_matrix_xlsx(plan["assignment"], None, {}, remedial=plan.get("remedial", {}))
+    with zipfile.ZipFile(buf, "a") as z:
+        z.writestr("الإسناد.xlsx" if i18n.is_ar() else "assignment.xlsx", xl if isinstance(xl, bytes) else xl.getvalue())
+    return buf.getvalue()
+
+
+def _curriculum_box(st, a):
+    """Approved curriculum by default; the school may replace it by its own file (or go back)."""
+    import curriculum as curr
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 1])
+        if a.get("curriculum"):
+            c1.markdown(t("curr_using_custom", y=curr.YEAR) + f" («{a.get('curriculum_name', '?')}»)")
+            if c2.button(t("curr_revert"), key="wz_curr_revert"):
+                a.pop("curriculum", None); a.pop("curriculum_name", None); st.rerun()
+        else:
+            c1.markdown(t("curr_using_approved", y=curr.YEAR))
+            c2.download_button(t("curr_download"), curr.approved_bytes(), f"{curr.label()}.csv".replace("/", "-"),
+                               "text/csv", key="wz_curr_dl", width="stretch")
+
+
 def _step_levels(st, a):
+    ss = st.session_state
+    _curriculum_box(st, a)
+    if _file_banner(st, ss, a, "classes"):
+        cl = build_frames(a)["classes"]
+        st.caption(" · ".join(f"{l}: {n}" for l, n in cl.groupby("Level").size().items()))
+        return
     st.subheader(t("wz_q_levels"))
     cols = st.columns(4)
     for c, l in zip(cols, LEVELS):
@@ -438,6 +716,28 @@ def _step_levels(st, a):
 
 
 def _step_subjects(st, a, frames):
+    ss = st.session_state
+    cur_file = bool(a.get("curriculum"))
+    if cur_file:
+        st.info(t("wz_from_file", s=t("wz_sec_subjects"), f=a.get("curriculum_name", "?"), n=len(a["curriculum"])))
+    else:
+        _optional_subjects(st, a)
+    if not _file_banner(st, ss, a, "rooms"):
+        _rooms_questions(st, a)
+    if not (cur_file and file_of(a, "rules")):
+        _it_questions(st, a)
+    frames = build_frames(a)
+    with st.expander(t("wz_curr_preview")):
+        cur = frames["subjects"].copy()
+        cur["Total"] = cur[["Hrs_Cours", "Hrs_TD", "Hrs_TP", "Hrs_Practice"]].sum(axis=1)
+        piv = cur.pivot_table(index="Subject_Code", columns="Level", values="Total", aggfunc="sum").fillna(0).astype(int)
+        piv.index = [i18n.subj(s) for s in piv.index]
+        piv.columns = [(c[0] + "م") if i18n.is_ar() else c for c in piv.columns]
+        piv.loc["Σ"] = piv.sum()
+        st.dataframe(piv, width="stretch")
+
+
+def _optional_subjects(st, a):
     st.subheader(t("wz_q_optional"))
     c1, c2 = st.columns(2)
     a["amazigh"] = c1.checkbox(t("wz_amazigh"), a["amazigh"], key="wz_amz")
@@ -451,6 +751,8 @@ def _step_subjects(st, a, frames):
     if a["arts"] in ("art", "both"):
         a["art_h"] = int(c2.number_input(i18n.subj("ART") + " – " + t("wz_hours_week"), 1, 3, int(a["art_h"]), key="wz_art_h"))
 
+
+def _rooms_questions(st, a):
     st.subheader(t("wz_q_rooms"))
     c1, c2, c3 = st.columns(3)
     a["classrooms"] = int(c1.number_input(t("wz_classrooms"), 1, 80, int(a["classrooms"]), key="wz_cr"))
@@ -460,6 +762,8 @@ def _step_subjects(st, a, frames):
         a["n_labs"] = int(c2.number_input(t("wz_n_labs"), 1, 20, int(a["n_labs"]), key="wz_nlabs"))
     a["sport_cap"] = int(c3.number_input(t("wz_sport"), 1, 10, int(a["sport_cap"]), key="wz_sport"))
 
+
+def _it_questions(st, a):
     st.subheader(t("wz_q_it"))
     c1, c2, c3 = st.columns(3)
     a["info_levels"] = c1.multiselect(t("wz_info_levels"), LEVELS, [l for l in a["info_levels"] if l in LEVELS], key="wz_infol")
@@ -467,18 +771,15 @@ def _step_subjects(st, a, frames):
         a["it_rooms"] = int(c2.number_input(t("wz_it_rooms"), 1, 10, int(a["it_rooms"]), key="wz_itr"))
         a["it_mode"] = c3.radio(t("wz_it_mode"), ["full", "half_lang"], ["full", "half_lang"].index(a["it_mode"]),
                                 key="wz_itm", format_func=lambda x: t("wz_it_full") if x == "full" else t("wz_it_half"))
-    frames = build_frames(a)
-    with st.expander(t("wz_curr_preview")):
-        cur = frames["subjects"].copy()
-        cur["Total"] = cur[["Hrs_Cours", "Hrs_TD", "Hrs_TP", "Hrs_Practice"]].sum(axis=1)
-        piv = cur.pivot_table(index="Subject_Code", columns="Level", values="Total", aggfunc="sum").fillna(0).astype(int)
-        piv.index = [i18n.subj(s) for s in piv.index]
-        piv.columns = [(c[0] + "م") if i18n.is_ar() else c for c in piv.columns]
-        piv.loc["Σ"] = piv.sum()
-        st.dataframe(piv, width="stretch")
 
 
 def _step_grouping(st, a, frames):
+    ss = st.session_state
+    if _file_banner(st, ss, a, "rules"):
+        st.subheader(t("wz_rem_title"))
+        a["rem_armath"] = st.checkbox(t("wz_rem_armath"), a["rem_armath"], key="wz_rem")
+        _rules_preview(st, build_frames(a))
+        return
     st.subheader(t("wz_q_grouping"))
     a["g_armath"] = st.checkbox(t("wz_g_armath"), a["g_armath"], key="wz_gam", help=t("wz_g_armath_h"))
     a["g_physsci"] = st.checkbox(t("wz_g_physsci"), a["g_physsci"], key="wz_gps")
@@ -489,18 +790,29 @@ def _step_grouping(st, a, frames):
         st.caption("✔ " + t("wz_it_half") + f" ({', '.join(a['info_levels'])})")
     st.subheader(t("wz_rem_title"))
     a["rem_armath"] = st.checkbox(t("wz_rem_armath"), a["rem_armath"], key="wz_rem")
-    frames = build_frames(a)
+    _rules_preview(st, build_frames(a))
+
+
+def _rules_preview(st, frames):
     with st.expander(t("wz_rules_preview"), expanded=True):
         r = frames["rules"]
         if r.empty:
             st.caption("—")
         for _, x in r.iterrows():
             st.markdown(f"- **{x['Level'].replace(';', ', ')}** · {i18n.subj(x['Primary_Subject'])} ↔ "
-                        f"{' / '.join(i18n.subj(s) for s in str(x['Secondary_Subject']).split(';'))} — {x['Description']}")
+                        f"{' / '.join(i18n.subj(s) for s in str(x['Secondary_Subject']).split(';'))} — {x.get('Description', '')}")
 
 
 def _step_teachers(st, ss, a, frames):
     req = needed_hours(frames)
+    if file_of(a, "teachers"):
+        f = file_of(a, "teachers")
+        c1, c2 = st.columns([4, 1])
+        c1.info(t("wz_from_file", s=t("wz_sec_teachers"), f=f.get("name", "?"), n=len(ss.get("wz_teachers") or [])))
+        if c2.button(t("wz_manual_btn"), key="wz_manual_teachers", width="stretch"):
+            remove_file(ss, a, "teachers"); st.rerun()
+        counts = suggest_counts(req, a)
+        return _teacher_list(st, ss, a, counts, key="file")
     c1, c2, c3 = st.columns(3)
     a["base_hours"] = int(c1.number_input(t("wz_base_hours"), 10, 30, int(a["base_hours"]), key="wz_bh"))
     a["mumayaz_less"] = int(c2.number_input(t("wz_mumayaz_less"), 0, 6, int(a["mumayaz_less"]), key="wz_ml"))
@@ -525,13 +837,16 @@ def _step_teachers(st, ss, a, frames):
     if changed or "wz_teachers" not in ss:
         ss["wz_teachers"] = make_teachers(counts, a)
         ss.pop("wz_assign", None)
+    return _teacher_list(st, ss, a, counts, key=hash(tuple((c['Subject'], c['n'], c['mum'], c['rem']) for c in counts)))
 
+
+def _teacher_list(st, ss, a, counts, key):
     st.subheader(t("wz_teacher_list"))
     tl = pd.DataFrame(ss["wz_teachers"])
     tl["SubjName"] = [i18n.subj(s) for s in tl["Subject"]]
     tl["Max"] = [load_of(r, a)[0] for r in ss["wz_teachers"]]
     ed2 = st.data_editor(tl[["Name", "SubjName", "Mumayaz", "Remedial", "Max"]], hide_index=True, width="stretch",
-                         key=f"wz_tl_{hash(tuple((c['Subject'], c['n'], c['mum'], c['rem']) for c in counts))}",
+                         key=f"wz_tl_{key}",
                          disabled=["SubjName", "Max"], height=min(600, 38 + 35 * len(tl)),
                          column_config={"Name": st.column_config.TextColumn(t("wz_c_name")),
                                         "SubjName": st.column_config.TextColumn(t("wz_c_subject")),
@@ -539,7 +854,8 @@ def _step_teachers(st, ss, a, frames):
                                         "Remedial": st.column_config.CheckboxColumn(t("wz_c_rem")),
                                         "Max": st.column_config.NumberColumn(t("wz_c_max"))})
     new = [{"Name": str(r["Name"]).strip() or o["Name"], "Subject": o["Subject"], "Mumayaz": bool(r["Mumayaz"]),
-            "Remedial": bool(r["Remedial"])} for o, (_, r) in zip(ss["wz_teachers"], ed2.iterrows())]
+            "Remedial": bool(r["Remedial"]), **({"Max": o["Max"]} if o.get("Max") else {})}
+           for o, (_, r) in zip(ss["wz_teachers"], ed2.iterrows())]
     if [x["Name"] for x in new] != [x["Name"] for x in ss["wz_teachers"]] and "wz_assign" in ss:
         ren = {o["Name"]: n["Name"] for o, n in zip(ss["wz_teachers"], new)}
         ss["wz_assign"] = {k: ren.get(v, v) for k, v in ss["wz_assign"].items()}
@@ -558,6 +874,12 @@ def _step_teachers(st, ss, a, frames):
 
 def _step_windows(st, a, frames):
     st.info(t("wz_grid_info"))
+    if _file_banner(st, st.session_state, a, "inspections"):
+        w = frames["inspections"]
+        st.dataframe(pd.DataFrame({t("wz_c_subject"): [i18n.subj(s) for s in w["Subject_Code"]],
+                                   "📅": [i18n.day(int(d)) for d in w["Day_Index"]], "⏱": w["Blocked_Slots"].astype(str)}),
+                     hide_index=True)
+        return
     st.subheader(t("wz_q_windows"))
     subjects = list(dict.fromkeys(frames["subjects"]["Subject_Code"]))
     opts = [-1] + list(range(DAYS_N))
@@ -592,7 +914,14 @@ def _step_assign(st, ss, a, frames, dnd_assign):
     names = {tr["Name"] for tr in teachers}
     keys = {(r.Class, r.Subject) for r in req.itertuples()}
     cur = ss.get("wz_assign")
-    if cur is None or set(cur) != keys or any(v and v not in names for v in cur.values()):
+    fa = file_of(a, "assign")
+    if fa and cur is not None:
+        _file_banner(st, ss, a, "assign")
+        extra = [k_ for k_ in cur if k_ not in keys]
+        if extra:
+            st.warning(t("wz_assign_extra", n=len(extra), x=", ".join(f"{i18n.cls(c)}·{i18n.subj(s_)}" for c, s_ in extra[:12])))
+        cur = {k_: (cur.get(k_) if cur.get(k_) in names else None) for k_ in keys}
+    elif cur is None or set(cur) != keys or any(v and v not in names for v in cur.values()):
         cur = auto_assign(req, teachers, a)
     st.subheader(t("wz_q_assign"))
     if st.button(t("wz_auto"), key="wz_auto"):
@@ -609,6 +938,7 @@ def _step_assign(st, ss, a, frames, dnd_assign):
             if k in cur:
                 cur[k] = m["teacher"] or None
         ss["wz_assign"] = cur
+        ss["wz_assign_touched"] = True
         st.rerun()
     un, over, _ = status(req, cur, teachers, a)
     ok = True
@@ -669,8 +999,8 @@ def _step_finish(st, ss, a, frames, db=None, ws="demo"):
         applied = True
     files = dict(frames)
     files["teachers"] = plan["teachers"]
-    c2.download_button(t("wz_download"), dl.to_zip(files), "school_setup.zip", "application/zip", key="wz_zip",
-                       width="stretch")
+    c2.download_button(t("wz_download"), _zip_with_assignment(files, plan), f"{ws}_school_setup.zip",
+                       "application/zip", key="wz_zip", width="stretch")
     if c3.button(t("wz_prev"), key="wz_prev_f2", width="stretch"):
         ss["wz_step"] = STEPS.index("assign"); st.rerun()
     return applied

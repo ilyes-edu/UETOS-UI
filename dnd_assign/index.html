@@ -1,44 +1,72 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
-  body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; padding: 4px; font-size: 13px; color: #1b1b1b; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .tab { border: 1px solid #ccc; border-radius: 16px; padding: 3px 10px; cursor: pointer; background: #fff; user-select: none; }
-  .tab.on { color: #fff; border-color: transparent; }
+  /* UETOS UI kit - restyled assignment board. Only visual rules changed; the <script> below is the original. */
+  :root { --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif; --accent: #1f6fa8;
+          --bg: #ffffff; --surface: #f5f8fc; --surface-2: #ebf1f8; --line: #e1e8f0; --line-2: #c9d6e3; --text: #162536; --muted: #62758a;
+          --green: #1e9e57; --red: #d64545; --red-bg: #fde9e9; --amber-bg: #fff8e4; }
+  :root[data-theme="dark"] { --bg: #0f1823; --surface: #142030; --surface-2: #1a283b; --line: #22324a; --line-2: #31455f; --text: #e5edf6; --muted: #93a5ba;
+          --red-bg: rgba(214,69,69,.2); --amber-bg: rgba(217,154,0,.14); }
+  * { box-sizing: border-box; }
+  body { font-family: var(--font); margin: 0; padding: 4px; font-size: 13px; color: var(--text); background: transparent; -webkit-font-smoothing: antialiased; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .tab { border: 1px solid var(--line-2); border-radius: 999px; padding: 5px 13px; cursor: pointer; background: var(--bg); user-select: none;
+         font-size: 12.5px; font-weight: 500; transition: border-color .12s, box-shadow .12s; }
+  .tab:hover { border-color: var(--accent); }
+  .tab.on { color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(15,35,60,.18); }
   .tab .st { font-size: 11px; margin-inline-start: 4px; }
-  .sec { margin-bottom: 12px; }
-  .sec h4 { margin: 6px 0; font-size: 14px; }
-  .cols { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
-  .col { width: 170px; border: 2px solid #e0e0e0; border-radius: 8px; background: #fafafa; min-height: 80px; }
-  .col.pool { border-style: dashed; background: #fff8e1; }
-  .col.over { border-color: #e53935; }
-  .col.full { border-color: #43a047; }
-  .col.drop { outline: 3px solid #1e88e5; }
+  .sec { margin-bottom: 14px; }
+  .sec h4 { margin: 8px 0; font-size: 14.5px; font-weight: 700; }
+  .cols { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+  .col { width: 178px; border: 2px solid var(--line); border-radius: 14px; background: var(--bg); min-height: 84px;
+         box-shadow: 0 1px 2px rgba(15,35,60,.05), 0 4px 12px rgba(15,35,60,.05); transition: border-color .12s, box-shadow .12s, opacity .12s; }
+  .col.pool { border-style: dashed; background: var(--amber-bg); }
+  .col.over { border-color: var(--red); }
+  .col.full { border-color: var(--green); }
+  .col.drop { outline: 3px solid var(--accent); outline-offset: 2px; }
   .col.nodrop { opacity: .35; }
-  .hd { padding: 5px 7px; border-bottom: 1px solid #e0e0e0; }
-  .nm { font-weight: 600; }
-  .tags span { font-size: 10px; background: #eee; border-radius: 6px; padding: 0 4px; margin-inline-end: 3px; }
-  .bar { height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 4px; overflow: hidden; }
-  .bar i { display: block; height: 100%; }
-  .tot { font-size: 12px; margin-top: 2px; }
-  .body { padding: 5px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 36px; }
-  .chip { border-radius: 6px; padding: 3px 6px; cursor: grab; font-size: 12px; border-inline-start: 4px solid; user-select: none; }
+  .hd { padding: 8px 10px; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+  .nm { font-weight: 700; font-size: 13px; padding-inline-end: 18px; }
+  .tags span { font-size: 10px; background: var(--surface-2); color: var(--muted); border-radius: 6px; padding: 1px 6px; margin-inline-end: 3px; font-weight: 600; }
+  .bar { height: 6px; background: var(--surface-2); border-radius: 99px; margin-top: 7px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 99px; }
+  .tot { font-size: 12px; margin-top: 4px; }
+  .body { padding: 7px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 40px; }
+  .chip { border-radius: 8px; padding: 4px 8px; cursor: grab; font-size: 12px; border-inline-start: 4px solid; user-select: none; color: #1b2a3a;
+          font-weight: 500; transition: transform .1s, box-shadow .1s; }
+  .chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(15,35,60,.15); }
   .chip small { opacity: .7; }
-  .hint { color: #999; font-size: 11px; padding: 6px; }
-  .col.sel { border-color: #1e88e5; box-shadow: 0 0 0 3px rgba(30,136,229,.25); background: #eef6fe; }
+  .hint { color: var(--muted); font-size: 11px; padding: 6px; }
+  .col.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
   .hd { cursor: pointer; position: relative; }
-  .hd:hover { background: #f0f4f8; }
-  .x { position: absolute; top: 3px; inset-inline-end: 4px; border: none; background: transparent; color: #999;
-       cursor: pointer; font-size: 13px; padding: 0 3px; border-radius: 4px; }
-  .x:hover { background: #ffebee; color: #c62828; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
-  .btn { border: 1px solid #cfd8dc; background: #fff; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
-  .btn:hover { background: #f5f5f5; }
-  .btn.warn { border-color: #ef9a9a; color: #c62828; }
-  .mode { background: #e3f2fd; color: #0d47a1; border-radius: 8px; padding: 4px 10px; font-size: 12px; }
-  .chip.pick { cursor: pointer; outline: 2px dashed #1e88e5; }
+  .hd:hover { background: var(--surface); }
+  .x { position: absolute; top: 6px; inset-inline-end: 6px; border: none; background: transparent; color: var(--muted); cursor: pointer;
+       font-size: 12px; padding: 1px 5px; border-radius: 6px; font-family: inherit; }
+  .x:hover { background: var(--red-bg); color: var(--red); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 10px; }
+  .btn { border: 1px solid var(--line-2); background: var(--bg); color: var(--text); border-radius: 9px; padding: 5px 12px; cursor: pointer;
+         font-size: 12px; font-family: inherit; font-weight: 500; transition: background .12s, border-color .12s; }
+  .btn:hover { background: var(--surface); border-color: var(--accent); }
+  .btn.warn { border-color: color-mix(in srgb, var(--red) 45%, transparent); color: var(--red); }
+  .btn.warn:hover { background: var(--red-bg); border-color: var(--red); }
+  .mode { background: color-mix(in srgb, var(--accent) 10%, var(--bg)); color: var(--accent); border-radius: 9px; padding: 5px 12px; font-size: 12px; font-weight: 500; }
+  .chip.pick { cursor: pointer; outline: 2px dashed var(--accent); outline-offset: 1px; }
   .flash { animation: fl .5s; } @keyframes fl { from { background: #ffcdd2; } }
-</style></head>
+  @media (prefers-reduced-motion: reduce) { .chip, .col, .tab, .btn { transition: none; } .chip:hover { transform: none; } }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<script>
+/* UETOS UI kit: follow the Streamlit theme (light/dark + primary colour). Visual only - the original script below is unchanged. */
+window.addEventListener("message", function (e) {
+  var d = e.data, th = d && d.type === "streamlit:render" ? d.theme : null;
+  if (!th) return;
+  var root = document.documentElement;
+  root.setAttribute("data-theme", th.base === "dark" ? "dark" : "light");
+  if (typeof th.primaryColor === "string" && /^[#\w(),.%\s-]+$/.test(th.primaryColor)) root.style.setProperty("--accent", th.primaryColor);
+});
+</script></head>
 <body><div id="app"></div>
 <script>
 const send = (type, extra) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra), "*");

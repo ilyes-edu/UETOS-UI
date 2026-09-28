@@ -111,6 +111,8 @@ def kpi(name):
 # ------------------------------------------------------------------ strings  key: (English, Arabic)
 S = {
     # ---- navigation (sidebar pages)
+    "ds_assign": ("Assignment (جدول الإسناد)", "جدول الإسناد"),
+    "school_name": ("🏫 School name", "🏫 اسم المؤسسة"),
     "nav_title": ("Pages", "الصفحات"),
     "pg_data": ("📂 Data", "📂 المعطيات"),
     "pg_plan": ("👥 Assignment", "👥 الإسناد"),
@@ -141,20 +143,25 @@ S = {
                      "إعداد الإسناد والتوزيع الزمني، مراقبتهما، تعديلهما بالسحب والإفلات، ثم التصدير."),
     "beta_footer": ("🧪 Evaluation version (beta) – please report any problem to the administrator.",
                     "🧪 نسخة تجريبية – يرجى إبلاغ المسؤول بأي مشكلة."),
-    "upload_help": ("CSV or Excel files. Column names and values may be in English or Arabic (download a template below).",
-                    "ملفات CSV أو Excel. أسماء الأعمدة والقيم بالعربية أو الإنجليزية (نزّل نموذجًا أدناه)."),
+    "upload_help": ("A zip downloaded from the setup wizard can be uploaded as is (the assignment inside is imported too). "
+                    "Column names and values may be in English or Arabic (download a template below). "
+                    "The curriculum is optional: the approved curriculum is used by default.",
+                    "يمكن رفع ملف zip المنزَّل من معالج الإعداد كما هو (يُستورد الإسناد الذي بداخله أيضًا). "
+                    "أسماء الأعمدة والقيم بالعربية أو الإنجليزية (نزّل نموذجًا أدناه). "
+                    "المنهاج اختياري: يُستعمل المنهاج المعتمد افتراضيًا."),
     "tpl_csv": ("⬇️ Template CSV", "⬇️ نموذج CSV"), "tpl_xlsx": ("⬇️ Template Excel", "⬇️ نموذج Excel"),
     "tpl_name": ("templates", "نماذج"),
     "language": ("🌐 Language / اللغة", "🌐 اللغة / Language"),
     "data": ("📂 Data", "📂 المعطيات"),
     "source": ("Source", "المصدر"),
-    "src_upload": ("Upload from my computer", "تحميل من جهازي"),
+    "src_upload": ("📂 Upload from computer", "📂 تحميل من الحاسوب"),
     "lab_fallback": ("Labs may use free classrooms", "المخابر يمكن تعويضها بقاعات شاغرة"),
     "lab_fallback_help": ("When no lab is free, practical work (TP) groups use a classroom left free by a class at sport, IT…",
                           "إذا لم يتوفر مخبر، تستعمل أفواج الأعمال التطبيقية قاعة تركها فوج في الملعب أو الإعلام الآلي…"),
     "o_wizard": ("setup guide", "دليل الإعداد"),
-    "src_sample": ("Sample data", "معطيات تجريبية"),
-    "upload_csvs": ("Select all your CSV files (multi-select)", "اختر كل ملفات CSV (اختيار متعدد)"),
+    "src_sample": ("🧪 Sample data", "🧪 معطيات تجريبية"),
+    "upload_csvs": ("Select your files: one zip with all the files, or the CSV / Excel files (multi-select)",
+                    "اختر ملفاتك: ملف zip واحد يضم كل الملفات، أو ملفات CSV / Excel (اختيار متعدد)"),
     "unreadable": ("❌ unreadable: {e}", "❌ غير مقروء: {e}"),
     "not_recognised": ("⚠️ not recognised", "⚠️ غير معروف"),
     "grid_upload_title": ("**📑 Assignment grid (optional)**", "**📑 جدول توزيع الحصص (اختياري)**"),
@@ -475,9 +482,11 @@ S = {
     "adv_caption": ("Defaults are tuned for Algerian middle schools – change only if needed.",
                     "القيم الافتراضية مضبوطة للمتوسطات – غيّرها عند الحاجة فقط."),
     "adv_password": ("Password", "كلمة السر"), "adv_wrong": ("Wrong password", "كلمة سر خاطئة"),
-    "workspace": ("👤 Workspace", "👤 مساحة العمل"),
-    "workspace_help": ("Each tester uses his own name: versions and wizard projects are stored separately per workspace.",
-                       "يستعمل كل مختبِر اسمه الخاص: تُحفظ النسخ ومشاريع المساعد منفصلة لكل مساحة عمل."),
+    "workspace": ("🏫 School name (workspace)", "🏫 اسم المؤسسة (مساحة العمل)"),
+    "workspace_help": ("The school name is also the workspace: versions and wizard projects are stored separately per "
+                       "school, and it appears on the exported timetables (PDF / Excel).",
+                       "اسم المؤسسة هو أيضًا مساحة العمل: تُحفظ النسخ ومشاريع المساعد منفصلة لكل مؤسسة، ويظهر في "
+                       "الجداول المصدَّرة (PDF / Excel)."),
     "db_local": ("💾 Local SQLite database (data/app.db) – on Streamlit Cloud it is erased at each restart; configure an external MySQL in secrets to keep data.",
                  "💾 قاعدة بيانات محلية SQLite – على Streamlit Cloud تُمحى عند كل إعادة تشغيل؛ اضبط MySQL خارجية في الأسرار للاحتفاظ بالبيانات."),
     "manage_versions": ("🗃 Manage versions", "🗃 إدارة النسخ"),

@@ -137,7 +137,8 @@ def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teac
 
     def one_sheet(key, cells, is_class):
         ws = wb.create_sheet(sheet_name(i18n.cls(key) if is_class else key, used)); ws.sheet_view.rightToLeft = rtl
-        ws.cell(1, 1, (i18n.cls(key) if is_class else key) + f" — {t('tot_h', h=_hours(cells))}").font = Font(bold=True, size=13)
+        ws.cell(1, 1, (f"{title} — " if title else "") + (i18n.cls(key) if is_class else key)
+                + f" — {t('tot_h', h=_hours(cells))}").font = Font(bold=True, size=13)
         ws.cell(2, 1, "").fill = hdr_fill
         for d in range(DAYS):
             cl = ws.cell(2, 2 + d, i18n.day(d)); cl.font = Font(bold=True); cl.fill = hdr_fill; cl.alignment = center
@@ -206,8 +207,15 @@ def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teach
     rtl = i18n.is_ar()
     buf = io.BytesIO()
     W, Hh = landscape(A4)
-    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=18, rightMargin=18, topMargin=20, bottomMargin=18,
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=18, rightMargin=18, topMargin=30, bottomMargin=18,
                             title=title)
+
+    def _header(canvas, _doc):          # school name — version on every page
+        if not title:
+            return
+        canvas.saveState(); canvas.setFont("DV", 8); canvas.setFillGray(0.35)
+        (canvas.drawRightString(W - 18, Hh - 16, _ar(title)) if rtl else canvas.drawString(18, Hh - 16, _ar(title)))
+        canvas.restoreState()
     h1 = ParagraphStyle("h1", fontName="DVB", fontSize=13, alignment=2 if rtl else 0, spaceAfter=6)
     cellst = lambda size, bold=False: ParagraphStyle("c", fontName="DVB" if bold else "DV", fontSize=size,
                                                      leading=size + 1.2, alignment=1)
@@ -308,5 +316,5 @@ def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teach
         story.pop()
     if not story:
         story = [Spacer(1, 10)]
-    doc.build(story)
+    doc.build(story, onFirstPage=_header, onLaterPages=_header)
     return buf.getvalue()

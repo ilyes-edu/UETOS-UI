@@ -1,148 +1,547 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UETOS – full timetable</title>
+<!--
+  UETOS UI kit – "dnd_full" Streamlit component (all classes / all teachers board).
+  Drop-in replacement for dnd_full/index.html. Same contract as the original file:
+    input : data = full_payload(...) built by app.py (unchanged)
+    output: {"type": "select", "lid": id|null, "nonce": n}
+            {"type": "move", "lid": id, "day": d, "slot": s, "nonce": n}
+  app.py / ScheduleEditor still validate and apply every change. No scheduling logic here.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <style>
-  body { margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; font-size: 11px; color: #262730; }
-  #wrap { overflow-x: auto; border: 1px solid #e3e3e3; border-radius: 6px; }
-  table { border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-  th, td { border-right: 1px solid #e6e6e6; border-bottom: 1px solid #e6e6e6; padding: 0; }
-  th { background: #f0f2f6; font-weight: 700; text-align: center; position: sticky; top: 0; z-index: 3; }
-  th.day { font-size: 12px; padding: 3px 0; border-right: 2px solid #9aa0a6; }
-  th.slot { font-size: 10px; color: #555; top: 21px; }
-  td.lbl, th.lbl { position: sticky; inset-inline-start: 0; z-index: 4; background: #f7f8fa; text-align: start;
-                   padding: 2px 6px; font-weight: 600; white-space: nowrap; min-width: 92px; max-width: 150px;
-                   overflow: hidden; text-overflow: ellipsis; }
-  td.lbl small { display: block; font-weight: 400; color: #666; font-size: 10px; }
-  td.c { width: 58px; min-width: 58px; height: 36px; vertical-align: top; position: relative; }
-  td.c.dayend, th.slot.dayend { border-right: 2px solid #9aa0a6; }
-  td.c.off { background: repeating-linear-gradient(45deg,#f6f6f6,#f6f6f6 4px,#ececec 4px,#ececec 8px); }
-  td.c.lunch { border-inline-start: 2px dashed #c9c9c9; }
-  td.c.green  { background: #c8f7c5; box-shadow: inset 0 0 0 2px #2ea043; }
-  td.c.yellow { background: #fff3b0; box-shadow: inset 0 0 0 2px #d4a400; }
-  td.c.red    { background: #ffe3e3; }
-  td.c.orange { background: #ffe0b2; box-shadow: inset 0 0 0 2px #e67e22; }
-  .card.pinned::after { content: "📌"; position: absolute; top: -3px; inset-inline-end: -1px; font-size: 10px; }
-  .card.moved { outline: 3px solid #2ea043; outline-offset: -3px; }
-  .card.clash { outline: 2px dashed #e5534b; outline-offset: -2px; }
-  td.c.current{ background: #dbe8ff; box-shadow: inset 0 0 0 2px #4a7bd0; }
-  td.c.dim    { background: #fafafa; }
-  .card { position: absolute; inset: 1px; border-radius: 4px; color: #fff; padding: 1px 3px; overflow: hidden;
-          cursor: grab; line-height: 1.15; box-shadow: 0 1px 2px rgba(0,0,0,.25); z-index: 2; }
-  .card .t { font-weight: 700; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card .s { font-size: 9.5px; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card.sel { outline: 3px solid #111; z-index: 5; }
-  .card.locked { cursor: not-allowed; opacity: .85; }
-  .card.half { bottom: 50%; } .card.half2 { top: 50%; }
-  .ro .card { cursor: default; }
-  .picking .card:not(.sel) { opacity: .35; }
-  .dragging .card { pointer-events: none; }
-  #bar { margin-top: 6px; min-height: 30px; padding: 6px 10px; border-radius: 6px; background: #f0f2f6; font-size: 13px; }
-  #legend span { display: inline-block; margin-inline-end: 12px; } #legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-inline-end: 4px; vertical-align: -1px; }
+  :root {
+    --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, -apple-system, sans-serif;
+    --accent: #1f6fa8;
+    --bg: #ffffff; --surface: #f5f8fc; --surface-2: #ebf1f8; --line: #e1e8f0; --line-2: #cbd7e3;
+    --text: #162536; --muted: #62758a; --cell: #ffffff; --cell-alt: #fafcfe; --off-a: #f1f4f8; --off-b: #e7ecf2;
+    --green: #1e9e57; --green-bg: #e1f5e8; --yellow: #c58b00; --yellow-bg: #fff2c9;
+    --orange: #dd6b20; --orange-bg: #ffe6d1; --red: #d64545; --red-bg: #fde9e9; --blue: #3b6fd6; --blue-bg: #e4ecfc;
+    --row-h: 56px; --cell-w: 62px; --label-w: 168px; --h1: 34px; --h2: 24px;
+    --shadow: 0 1px 2px rgba(15, 35, 60, .05), 0 8px 24px rgba(15, 35, 60, .07);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1823; --surface: #142030; --surface-2: #1a283b; --line: #22324a; --line-2: #31455f;
+    --text: #e5edf6; --muted: #93a5ba; --cell: #111b28; --cell-alt: #13202f; --off-a: #162231; --off-b: #1b293a;
+    --green-bg: rgba(30, 158, 87, .22); --yellow-bg: rgba(197, 139, 0, .22); --orange-bg: rgba(221, 107, 32, .22);
+    --red-bg: rgba(214, 69, 69, .2); --blue-bg: rgba(59, 111, 214, .24);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; }
+  body { padding: 2px 2px 6px; font-family: var(--font); font-size: 13px; color: var(--text); -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+
+  .app { background: var(--bg); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+  .app.compact { --row-h: 40px; --cell-w: 48px; --label-w: 138px; }
+  .app.oneday { --cell-w: 112px; }
+  .app.oneday.compact { --cell-w: 92px; }
+
+  /* header */
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px 8px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--accent); }
+  .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
+  .title { font-size: 17px; font-weight: 700; margin-top: 2px; letter-spacing: -.01em; }
+  .stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stat { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .stat b { color: var(--text); font-weight: 700; }
+  .stat.bad { background: var(--red-bg); border-color: transparent; color: var(--red); } .stat.bad b { color: var(--red); }
+  .stat.good { background: var(--green-bg); border-color: transparent; color: var(--green); } .stat.good b { color: var(--green); }
+  .stat.info { background: var(--yellow-bg); border-color: transparent; color: var(--yellow); } .stat.info b { color: var(--yellow); }
+
+  /* controls */
+  .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 16px 12px; }
+  .search { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; max-width: 340px; height: 34px; padding: 0 11px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); transition: border-color .15s, box-shadow .15s; }
+  .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .search svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+  .search input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 12.5px; }
+  .search input::placeholder { color: var(--muted); }
+  .days { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip, .tool { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--bg); font-size: 12px; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+  .chip:hover, .tool:hover { border-color: var(--accent); }
+  .chip.on, .tool.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tools { display: flex; gap: 4px; margin-inline-start: auto; }
+  .tool { border-radius: 9px; background: var(--surface); }
+
+  /* status bar */
+  .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 44px; padding: 8px 16px; background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .selchip { display: inline-flex; align-items: center; gap: 7px; max-width: 360px; padding: 3px 4px; padding-inline-start: 10px; border-radius: 999px; background: var(--bg); border: 1.5px solid var(--accent); font-size: 12px; font-weight: 600; }
+  .selchip[hidden] { display: none; }
+  .selswatch { width: 10px; height: 10px; flex: none; border-radius: 3px; }
+  .seltext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .selx { width: 22px; height: 22px; flex: none; border: 0; border-radius: 50%; background: var(--surface-2); font-size: 11px; cursor: pointer; }
+  .selx:hover { background: var(--red-bg); color: var(--red); }
+  .msg { flex: 1 1 260px; font-size: 12.5px; line-height: 1.55; }
+  .msg b { font-weight: 700; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  /* board */
+  .scroller { position: relative; overflow: auto; max-height: 620px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+  .app.expanded .scroller { max-height: none; }
+  .grid { position: relative; display: grid; width: max(100%, calc(var(--label-w) + var(--n, 35) * var(--cell-w))); }
+  .corner, .dh, .sh, .rl { background: var(--surface); }
+  .corner { position: sticky; top: 0; inset-inline-start: 0; z-index: 7; display: flex; flex-direction: column; justify-content: center; padding: 0 12px; border-bottom: 1px solid var(--line-2); border-inline-end: 1px solid var(--line-2); }
+  .corner span { font-weight: 700; font-size: 12.5px; }
+  .corner small { color: var(--muted); font-size: 11px; }
+  .dh { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 12.5px; border-bottom: 1px solid var(--line); border-inline-end: 2px solid var(--line-2); }
+  .dh small { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); font-size: 10.5px; text-align: center; }
+  .sh { position: sticky; top: var(--h1); z-index: 5; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line-2); border-inline-end: 1px solid var(--line); }
+  .sh.dayend, .c.dayend { border-inline-end: 2px solid var(--line-2); }
+  .sh.lunch, .c.lunch { border-inline-start: 2px dashed var(--line-2); }
+  .rl { position: sticky; inset-inline-start: 0; z-index: 4; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 12px; border-bottom: 1px solid var(--line); border-inline-end: 1px solid var(--line-2); border-inline-start: 3px solid transparent; }
+  .rl.on { border-inline-start-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .rl b { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rl small { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app.compact .rl small { display: none; }
+
+  .c { background: var(--cell); border-bottom: 1px solid var(--line); border-inline-end: 1px solid var(--line); transition: background .12s, box-shadow .12s; }
+  .c.alt { background: var(--cell-alt); }
+  .c.off { background: repeating-linear-gradient(45deg, var(--off-a) 0 5px, var(--off-b) 5px 10px); }
+  .c.dim { opacity: .5; }
+  .c.st-green { background: var(--green-bg); box-shadow: inset 0 0 0 2px var(--green); cursor: pointer; }
+  .c.st-yellow { background: var(--yellow-bg); box-shadow: inset 0 0 0 2px var(--yellow); cursor: pointer; }
+  .c.st-orange { background: var(--orange-bg); box-shadow: inset 0 0 0 2px var(--orange); cursor: pointer; }
+  .c.st-red { background: var(--red-bg); cursor: not-allowed; }
+  .c.st-current { background: var(--blue-bg); box-shadow: inset 0 0 0 2px var(--blue); }
+  .c.hov { outline: 2px solid var(--text); outline-offset: -2px; }
+  .c:focus-visible, .card:focus-visible, .chip:focus-visible, .tool:focus-visible, .selx:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .card {
+    --lh: calc((var(--row-h) - 6px) / var(--lanes, 1));
+    position: relative; z-index: 2; align-self: start; min-width: 0; height: calc(var(--lh) - 2px);
+    margin: calc(3px + var(--lane, 0) * var(--lh)) 2px 0; padding: 3px 8px; border-radius: 9px; color: #fff;
+    display: flex; flex-direction: column; justify-content: center; gap: 1px; overflow: hidden; line-height: 1.2;
+    cursor: grab; box-shadow: 0 1px 2px rgba(0, 0, 0, .18); transition: transform .12s, box-shadow .12s, opacity .12s;
+  }
+  .card:hover { z-index: 6; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0, 0, 0, .2); }
+  .card:active { cursor: grabbing; }
+  .card .t { font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .s { font-size: 10px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app.compact .card .t { font-size: 10.5px; }
+  .app.compact .card .s, .card.tight .s { display: none; }
+  .card .bs { position: absolute; top: 2px; inset-inline-end: 3px; font-size: 9px; line-height: 1; letter-spacing: 1px; }
+  .card.locked { cursor: not-allowed; }
+  .card.locked::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(45deg, transparent 0 5px, rgba(255, 255, 255, .18) 5px 10px); }
+  .card.clash { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--red); }
+  .card.moved { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--green); }
+  .card.sel { z-index: 7; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent), 0 8px 18px rgba(0, 0, 0, .22); }
+  .card.faded { opacity: .28; }
+  .card.tgt { cursor: pointer; }
+  .card.tgt-green { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--green); }
+  .card.tgt-yellow { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--yellow); }
+  .card.tgt-orange { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--orange); }
+  .card.nomatch { opacity: .22; }
+  .card.pending { animation: pulse 1s ease-in-out infinite; }
+  .app.ro .card { cursor: default; }
+  .app.ro .card:hover { transform: none; }
+  .app.busy .grid { cursor: progress; }
+  .app.dragging .card { pointer-events: none; }
+  .card.src { opacity: .4; }
+  .nope { animation: nope .28s; }
+  .empty { padding: 32px 16px; text-align: center; color: var(--muted); }
+  @keyframes pulse { 50% { opacity: .55; } }
+  @keyframes nope { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+  @media (max-width: 720px) {
+    .head { padding: 10px 12px 6px; } .controls { padding: 2px 12px 10px; } .bar { padding: 8px 12px; }
+    .tools { margin-inline-start: 0; } .search { max-width: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
-<div id="wrap"><table id="tbl"></table></div>
-<div id="bar"><div id="legend"></div><div id="msg"></div></div>
+<div class="app" id="app">
+  <header class="head">
+    <div>
+      <div class="eyebrow" id="eyebrow"></div>
+      <div class="title" id="title"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </header>
+  <div class="controls">
+    <label class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.6-3.6"></path></svg>
+      <input id="q" type="search" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="days" id="days"></div>
+    <div class="tools">
+      <button type="button" class="tool" id="density" aria-pressed="false"></button>
+      <button type="button" class="tool" id="expand" aria-pressed="false"></button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="selchip" id="selchip" hidden>
+      <span class="selswatch" id="selswatch"></span>
+      <span class="seltext" id="seltext"></span>
+      <button type="button" class="selx" id="selx">✕</button>
+    </div>
+    <div class="msg" id="msg" aria-live="polite"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="scroller" id="scroller"><div class="grid" id="grid"></div></div>
+</div>
 <script>
-let ARGS = null, T = {}, dragId = null, lastSel = null;
-const send = (type, extra) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra), "*");
-const fmt = (s, kw) => (s || "").replace(/\{(\w+)\}/g, (_, k) => kw[k] ?? "");
-const H = () => send("streamlit:setFrameHeight", {height: document.body.scrollHeight + 8});
-function setMsg(h) { document.getElementById("msg").innerHTML = h; H(); }
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const root = document.documentElement;
+  const app = $("app"), grid = $("grid"), msgEl = $("msg");
+  const raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : (f) => setTimeout(f, 16);
+  const caf = window.cancelAnimationFrame ? window.cancelAnimationFrame.bind(window) : clearTimeout;
 
-function render() {
-  const A = ARGS, tb = document.getElementById("tbl"), S = A.slots.length, D = A.days.length;
-  document.body.classList.toggle("ro", !!A.readonly);
-  let h = `<colgroup><col style="width:120px">${"<col style='width:58px'>".repeat(S * D)}</colgroup>`;
-  h += `<tr><th class="lbl" rowspan="2">${A.title}</th>` + A.days.map(d => `<th class="day" colspan="${S}">${d}</th>`).join("") + "</tr>";
-  h += "<tr>" + A.days.map(() => A.slots.map((s, i) => `<th class="slot${i === S - 1 ? " dayend" : ""}">${s}</th>`).join("")).join("") + "</tr>";
-  for (const r of A.rows) {
-    h += `<tr data-row="${r.key}"><td class="lbl" title="${r.label}">${r.label}<small>${r.sub || ""}</small></td>`;
-    for (let d = 0; d < D; d++) for (let s = 0; s < S; s++) {
-      const off = A.off.includes(`${d},${s}`);
-      h += `<td class="c${off ? " off" : ""}${s === S - 1 ? " dayend" : ""}${s === A.lunch + 1 ? " lunch" : ""}" data-row="${r.key}" data-key="${d},${s}"></td>`;
-    }
-    h += "</tr>";
+  const UI = {
+    en: {search: "Search a class, teacher or subject…", week: "Whole week", compact: "Compact", all: "All rows",
+         rows: "rows", lessons: "lessons", conflicts: "conflicts", noConflict: "No conflicts", pinned: "pinned",
+         moved: "moved", cancel: "Cancel selection (Esc)", none: "No row matches your search.",
+         readonly: "Read-only view", free: "Free moves mode", editing: "Interactive editor"},
+    ar: {search: "ابحث عن فوج أو أستاذ أو مادة…", week: "كامل الأسبوع", compact: "عرض مضغوط", all: "كل الأسطر",
+         rows: "سطر", lessons: "حصة", conflicts: "تعارض", noConflict: "بدون تعارض", pinned: "مثبّتة",
+         moved: "منقولة", cancel: "إلغاء التحديد (Esc)", none: "لا يوجد سطر مطابق للبحث.",
+         readonly: "عرض فقط", free: "وضع التنقلات الحرة", editing: "محرر تفاعلي"}
+  };
+  const store = {
+    get(k, d) { try { const v = window.localStorage.getItem("uetos.full." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { window.localStorage.setItem("uetos.full." + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
+  };
+
+  let A = null, T = {}, U = UI.en, byId = new Map();
+  let dragId = null, dropEl = null, tipEl = null, lastSel = null, lastNonce = 0, pendingTimer = 0, heightRaf = 0;
+  let day = -1, query = "";
+  let compact = !!store.get("compact", false), expanded = !!store.get("expanded", false);
+
+  const send = (type, extra) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra || {}), "*");
+  const ESC = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ESC[c]);
+  const plain = (v) => { const s = String(v == null ? "" : v).trim(); return s === "&nbsp;" ? "" : s; };
+  // i18n templates come from app.py (trusted, may contain <b>); inserted values are escaped.
+  const fmt = (tpl, kw) => String(tpl || "").replace(/\{(\w+)\}/g, (_, k) => esc(kw && kw[k] != null ? kw[k] : ""));
+  const cssColor = (v) => typeof v === "string" && v.length < 300 && /^[\w#(),.%\s-]+$/.test(v);
+  const safeBg = (v) => (cssColor(v) ? v : "var(--accent)");
+  const kind = (v) => String(v || "").toLowerCase().replace(/[^a-z]/g, "");
+  const isRec = (id) => String(id).startsWith("REC::");
+  const label = (st) => (st === "orange" ? (T.forced || "forced") : (T["st_" + st] || st));
+  const debounce = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+  const picking = () => !!(A && !A.readonly && A.sel != null && A.status);
+  const isSel = (id) => !!(A && A.sel != null && String(A.sel) === String(id));
+
+  function emit(value) {
+    lastNonce = Math.max(Date.now(), lastNonce + 1);
+    send("streamlit:setComponentValue", {value: Object.assign({}, value, {nonce: lastNonce}), dataType: "json"});
   }
-  tb.innerHTML = h;
-  // cards
-  for (const l of A.lessons) {
-    for (const rk of l.rows) {
-      for (let k = 0; k < l.duration; k++) {
-        const td = tb.querySelector(`td.c[data-row="${CSS.escape(rk)}"][data-key="${l.day},${l.start + k}"]`);
-        if (!td) continue;
-        const n = td.querySelectorAll(".card").length;
-        const el = document.createElement("div");
-        el.className = "card" + (l.locked ? " locked" : "") + (l.pinned ? " pinned" : "") + (l.clash ? " clash" : "") + (l.moved ? " moved" : "") + (l.id === A.sel ? " sel" : "") + (n ? " half2" : "");
-        if (n) td.querySelector(".card").classList.add("half");
-        el.style.background = l.bg;
-        el.innerHTML = `<div class="t">${l.title}</div><div class="s">${l.sub}</div>`;
-        el.title = l.tooltip; el.dataset.id = l.id;
-        el.draggable = !A.readonly && !l.locked;
-        if (!A.readonly) {
-          el.addEventListener("click", e => { e.stopPropagation(); if (l.locked) { setMsg(T.locked); return; }
-            send("streamlit:setComponentValue", {value: {type: "select", lid: A.sel === l.id ? null : l.id, nonce: Date.now()}, dataType: "json"});
-            setMsg(T.loading); });
-          el.addEventListener("dragstart", e => { dragId = l.id; e.dataTransfer.setData("text/plain", l.id);
-            setTimeout(() => document.body.classList.add("dragging"), 0); });
-          el.addEventListener("dragend", () => { dragId = null; document.body.classList.remove("dragging"); });
-        }
-        td.appendChild(el);
-      }
-    }
+  function syncHeight() {
+    caf(heightRaf);
+    heightRaf = raf(() => send("streamlit:setFrameHeight", {height: Math.ceil(document.body.scrollHeight) + 4}));
   }
-  if (!A.readonly) {
-    tb.querySelectorAll("td.c").forEach(td => {
-      td.addEventListener("dragover", e => { if (dragId) e.preventDefault(); });
-      td.addEventListener("drop", e => { e.preventDefault(); if (dragId) move(dragId, td); });
-      td.addEventListener("click", () => { if (A.sel) move(A.sel, td); });
-      td.addEventListener("mouseenter", () => { if (A.sel && A.status) {
-        const st = cellStatus(A.sel, td); if (st) setMsg(`<b>${A.days[+td.dataset.key.split(",")[0]]} – ${A.slots[+td.dataset.key.split(",")[1]]}</b>: ${T["st_" + st[0]] || ""} – ${st[1]}`); } });
+  function setMsg(html) { msgEl.innerHTML = html || ""; syncHeight(); }
+  function baseMsg() {
+    if (!A || A.readonly) return "";
+    const l = picking() ? byId.get(String(A.sel)) : null;
+    return l ? fmt(T.moving, {t: l.title, d: l.duration, s: plain(l.sub)}) : fmt(T.hint, {});
+  }
+  function armPending() {
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(() => { clearPending(); setMsg(baseMsg()); }, 6000);
+  }
+  function clearPending() {
+    clearTimeout(pendingTimer);
+    app.classList.remove("busy");
+    grid.querySelectorAll(".pending").forEach((n) => n.classList.remove("pending"));
+  }
+
+  function normalize(p) {
+    p = p && typeof p === "object" ? p : {};
+    const arr = (v) => (Array.isArray(v) ? v : []);
+    return Object.assign({}, p, {
+      rows: arr(p.rows).map((r) => Object.assign({}, r, {key: String(r && r.key)})),
+      lessons: arr(p.lessons).map((l) => Object.assign({}, l, {rows: arr(l && l.rows).map(String)})),
+      days: arr(p.days).length ? arr(p.days) : ["1", "2", "3", "4", "5"],
+      slots: arr(p.slots).length ? arr(p.slots) : ["1", "2", "3", "4", "5", "6", "7"],
+      off: arr(p.off).map(String),
+      i18n: p.i18n && typeof p.i18n === "object" ? p.i18n : {},
+      status: p.status && typeof p.status === "object" ? p.status : null
     });
   }
-  paint();
-}
-function rowsOf(lid) { const l = ARGS.lessons.find(x => x.id === lid); return l ? l.rows : []; }
-function cellStatus(lid, td) {
-  if (!ARGS.status || ARGS.sel !== lid) return null;
-  if (!rowsOf(lid).includes(td.dataset.row)) return ["red", T.other_row];
-  return ARGS.status[td.dataset.key];
-}
-function paint() {
-  const A = ARGS;
-  document.body.classList.toggle("picking", !!(A.sel && A.status));
-  if (!A.sel || !A.status) { setMsg(A.readonly ? "" : T.hint); return; }
-  const rs = rowsOf(A.sel);
-  document.querySelectorAll("td.c").forEach(td => {
-    if (!rs.includes(td.dataset.row)) { td.classList.add("dim"); return; }
-    const st = A.status[td.dataset.key]; if (st) { td.classList.add(st[0]); td.title = st[1]; }
+
+  // Lessons sharing time in the same row are drawn side by side in "lanes" (never on top of each other).
+  function lanes(list) {
+    const out = new Map(), byDay = new Map();
+    for (const l of list) { const d = Number(l.day); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(l); }
+    for (const items of byDay.values()) {
+      items.sort((a, b) => Number(a.start) - Number(b.start) || Number(b.duration) - Number(a.duration));
+      let group = [], ends = [], groupEnd = -Infinity;
+      const flush = () => { for (const it of group) out.get(String(it.id)).lanes = ends.length; group = []; ends = []; };
+      for (const l of items) {
+        const s = Number(l.start), e = s + Math.max(1, Number(l.duration) || 1);
+        if (group.length && s >= groupEnd) { flush(); groupEnd = -Infinity; }
+        let lane = ends.findIndex((x) => x <= s);
+        if (lane < 0) { lane = ends.length; ends.push(e); } else ends[lane] = e;
+        out.set(String(l.id), {lane, lanes: 1});
+        group.push(l);
+        groupEnd = Math.max(groupEnd, e);
+      }
+      if (group.length) flush();
+    }
+    return out;
+  }
+
+  function render() {
+    if (!A) return;
+    const D = A.days.length, S = A.slots.length;
+    const lunch = Number.isFinite(Number(A.lunch)) ? Number(A.lunch) : 3;
+    if (day >= D) day = -1;
+    const vis = day >= 0 ? [day] : A.days.map((_, i) => i);
+    const q = query.trim().toLowerCase();
+    const pick = picking();
+    const sel = pick ? byId.get(String(A.sel)) : null;
+    const selRows = new Set(sel ? sel.rows : []);
+    const offs = new Set(A.off);
+    const perRow = new Map(A.rows.map((r) => [r.key, []]));
+    for (const l of A.lessons) for (const rk of new Set(l.rows)) { const list = perRow.get(rk); if (list) list.push(l); }
+    const lessonText = (l) => `${l.title || ""} ${plain(l.sub)} ${l.tooltip || ""}`.toLowerCase();
+    const rowText = (r) => `${r.label || ""} ${r.sub || ""} ${r.key}`.toLowerCase();
+    const rows = A.rows.filter((r) => !q || rowText(r).includes(q) || perRow.get(r.key).some((l) => lessonText(l).includes(q)));
+    const rowHit = new Set(q ? rows.filter((r) => rowText(r).includes(q)).map((r) => r.key) : []);
+    const N = vis.length * S;
+    const col = (p, s) => 2 + p * S + s;
+
+    app.classList.toggle("ro", !!A.readonly);
+    app.classList.toggle("compact", compact);
+    app.classList.toggle("expanded", expanded);
+    app.classList.toggle("oneday", vis.length === 1);
+    app.classList.toggle("picking", pick);
+    grid.style.setProperty("--n", String(N));
+    grid.style.gridTemplateColumns = `var(--label-w) repeat(${N}, minmax(var(--cell-w), 1fr))`;
+    grid.style.gridTemplateRows = `var(--h1) var(--h2) repeat(${Math.max(rows.length, 1)}, var(--row-h))`;
+
+    const h = [];
+    const shown = rows.length !== A.rows.length ? `${rows.length} / ${A.rows.length}` : String(rows.length);
+    h.push(`<div class="corner" style="grid-row:1/span 2;grid-column:1"><span>${esc(A.title || "")}</span><small>${shown} ${esc(U.rows)}</small></div>`);
+    vis.forEach((d, p) => {
+      const ids = new Set();
+      for (const r of rows) for (const l of perRow.get(r.key)) if (Number(l.day) === d && !isRec(l.id)) ids.add(String(l.id));
+      h.push(`<div class="dh" style="grid-row:1;grid-column:${col(p, 0)}/span ${S}"><b>${esc(A.days[d])}</b><small>${ids.size}</small></div>`);
+      for (let s = 0; s < S; s++) {
+        h.push(`<div class="sh${s === lunch + 1 ? " lunch" : ""}${s === S - 1 ? " dayend" : ""}" style="grid-row:2;grid-column:${col(p, s)}">${esc(A.slots[s])}</div>`);
+      }
+    });
+    rows.forEach((r, i) => {
+      const gr = i + 3, inSel = selRows.has(r.key);
+      h.push(`<div class="rl${inSel ? " on" : ""}" style="grid-row:${gr};grid-column:1" title="${esc(r.label)}"><b>${esc(r.label)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</div>`);
+      vis.forEach((d, p) => {
+        for (let s = 0; s < S; s++) {
+          const key = `${d},${s}`;
+          let c = "c", extra = "";
+          if (i % 2) c += " alt";
+          if (offs.has(key)) c += " off";
+          if (s === lunch + 1) c += " lunch";
+          if (s === S - 1) c += " dayend";
+          if (pick) {
+            if (inSel) {
+              const st = A.status[key];
+              if (st) { c += " st-" + kind(st[0]); extra += ` title="${esc(st[1])}"`; }
+              extra += ' tabindex="0" role="button"';
+            } else c += " dim";
+          }
+          h.push(`<div class="${c}" data-r="${esc(r.key)}" data-d="${d}" data-s="${s}" style="grid-row:${gr};grid-column:${col(p, s)}"${extra}></div>`);
+        }
+      });
+      const mine = perRow.get(r.key).filter((l) => vis.includes(Number(l.day)));
+      const lane = lanes(mine);
+      for (const l of mine) {
+        const id = String(l.id), p = vis.indexOf(Number(l.day));
+        const start = Math.min(Math.max(0, Number(l.start) || 0), S - 1);
+        const span = Math.max(1, Math.min(Number(l.duration) || 1, S - start));
+        const ln = lane.get(id) || {lane: 0, lanes: 1};
+        let c = "card";
+        if (l.locked) c += " locked";
+        if (l.pinned) c += " pinned";
+        if (l.clash) c += " clash";
+        if (l.moved) c += " moved";
+        if (isRec(id)) c += " rec";
+        if (ln.lanes > 1) c += " tight";
+        if (q && !rowHit.has(r.key) && !lessonText(l).includes(q)) c += " nomatch";
+        if (!A.readonly && isSel(id)) c += " sel";
+        else if (pick) {
+          const st = inSel ? A.status[`${Number(l.day)},${start}`] : null;
+          const k = st ? kind(st[0]) : "";
+          c += (k === "green" || k === "yellow" || k === "orange") ? ` tgt tgt-${k}` : " faded";
+        }
+        const badges = (l.pinned ? "📌" : "") + (l.clash ? "⚠" : "") + (l.locked ? "🔒" : "");
+        const sub = plain(l.sub);
+        h.push(`<div class="${c}" data-id="${esc(id)}" data-r="${esc(r.key)}" data-d="${Number(l.day)}" data-s="${start}"` +
+          ` style="grid-row:${gr};grid-column:${col(p, start)}/span ${span};--lane:${ln.lane};--lanes:${ln.lanes};background:${safeBg(l.bg)}"` +
+          ` title="${esc(l.tooltip || l.title || "")}"${!A.readonly && !l.locked ? ' draggable="true"' : ""}${A.readonly ? "" : ' tabindex="0" role="button"'}>` +
+          `<span class="t">${esc(l.title)}</span>${sub ? `<span class="s">${esc(sub)}</span>` : ""}${badges ? `<span class="bs" aria-hidden="true">${badges}</span>` : ""}</div>`);
+      }
+    });
+    if (!rows.length) h.push(`<div class="empty" style="grid-row:3;grid-column:1/span ${N + 1}">${esc(A.rows.length ? U.none : "—")}</div>`);
+    grid.innerHTML = h.join("");
+    dropEl = tipEl = null;
+    chrome(rows);
+    if (pick && String(A.sel) !== lastSel) {
+      lastSel = String(A.sel);
+      const c = grid.querySelector(".card.sel");
+      if (c && c.scrollIntoView) c.scrollIntoView({block: "nearest", inline: "nearest"});
+    } else if (!pick) lastSel = null;
+  }
+
+  function chrome(rows) {
+    $("eyebrow").textContent = A.readonly ? U.readonly : (A.free ? U.free : U.editing);
+    $("title").textContent = A.title || "";
+    const real = A.lessons.filter((l) => !isRec(l.id));
+    const nC = real.filter((l) => l.clash).length, nP = real.filter((l) => l.pinned).length, nM = real.filter((l) => l.moved).length;
+    const st = [`<span class="stat"><b>${rows.length}</b> ${esc(U.rows)}</span>`, `<span class="stat"><b>${real.length}</b> ${esc(U.lessons)}</span>`];
+    st.push(nC ? `<span class="stat bad"><b>${nC}</b> ${esc(U.conflicts)}</span>` : `<span class="stat good">✓ ${esc(U.noConflict)}</span>`);
+    if (nP) st.push(`<span class="stat info"><b>${nP}</b> ${esc(U.pinned)}</span>`);
+    if (nM) st.push(`<span class="stat good"><b>${nM}</b> ${esc(U.moved)}</span>`);
+    $("stats").innerHTML = st.join("");
+    const q = $("q");
+    q.placeholder = U.search; q.setAttribute("aria-label", U.search);
+    $("days").innerHTML = [`<button type="button" class="chip${day < 0 ? " on" : ""}" data-day="-1" aria-pressed="${day < 0}">${esc(U.week)}</button>`]
+      .concat(A.days.map((d, i) => `<button type="button" class="chip${day === i ? " on" : ""}" data-day="${i}" aria-pressed="${day === i}">${esc(d)}</button>`)).join("");
+    const dens = $("density"), exp = $("expand");
+    dens.textContent = "▤ " + U.compact; dens.setAttribute("aria-pressed", String(compact)); dens.classList.toggle("on", compact);
+    exp.textContent = "↕ " + U.all; exp.setAttribute("aria-pressed", String(expanded)); exp.classList.toggle("on", expanded);
+    $("legend").innerHTML = A.readonly ? "" : [["var(--green)", T.free], ["var(--yellow)", T.swap], A.free ? ["var(--orange)", T.forced] : null,
+      ["var(--red)", T.impossible], ["var(--blue)", T.current]].filter(Boolean)
+      .map(([c, t]) => `<span><i style="background:${c}"></i>${esc(t || "")}</span>`).join("");
+    const l = picking() ? byId.get(String(A.sel)) : null, chip = $("selchip");
+    chip.hidden = !l;
+    if (l) {
+      $("selswatch").style.background = safeBg(l.bg);
+      $("seltext").textContent = [l.title, plain(l.sub)].filter(Boolean).join(" · ");
+      $("selx").title = U.cancel; $("selx").setAttribute("aria-label", U.cancel);
+    }
+    setMsg(baseMsg());
+  }
+
+  // ---- interactions (same rules as the original component; Python makes the final decision)
+  function onCard(card) {
+    const l = byId.get(card.dataset.id);
+    if (!l) return;
+    if (picking() && card.classList.contains("tgt")) { move(String(A.sel), card.dataset.r, Number(card.dataset.d), Number(card.dataset.s), card); return; }
+    if (l.locked) { setMsg(fmt(T.locked, {})); return; }
+    emit({type: "select", lid: isSel(l.id) ? null : String(l.id)});
+    card.classList.add("pending");
+    app.classList.add("busy");
+    setMsg(fmt(T.loading, {}));
+    armPending();
+  }
+  function move(lid, rowKey, d, s, el) {
+    const l = byId.get(String(lid));
+    if (!l) return;
+    if (!l.rows.includes(String(rowKey))) { setMsg(fmt(T.other_row, {})); if (el) shake(el); return; }
+    if (Number(l.day) === d && Number(l.start) === s) return;
+    const st = isSel(lid) && A.status ? A.status[`${d},${s}`] : null;
+    if (st && kind(st[0]) === "current") return;
+    if (st && kind(st[0]) === "red") { setMsg(fmt(T.not_allowed, {m: st[1]})); if (el) shake(el); return; }
+    emit({type: "move", lid: String(lid), day: d, slot: s});
+    app.classList.add("busy");
+    setMsg(fmt(T.applying, {}));
+    armPending();
+  }
+  function cancelSelection() {
+    if (!A || A.readonly || A.sel == null) return;
+    emit({type: "select", lid: null});
+    app.classList.add("busy");
+    setMsg(fmt(T.loading, {}));
+    armPending();
+  }
+  function shake(el) { el.classList.remove("nope"); void el.offsetWidth; el.classList.add("nope"); }
+  function explain(el, lid) {
+    if (!A || !A.status || !isSel(lid)) return;
+    const l = byId.get(String(lid)), d = Number(el.dataset.d), s = Number(el.dataset.s);
+    const st = l && l.rows.includes(el.dataset.r) ? A.status[`${d},${s}`] : ["red", T.other_row];
+    if (st) setMsg(`<b>${esc(A.days[d])} – ${esc(A.slots[s])}</b>: ${esc(label(kind(st[0])))} – ${esc(st[1])}`);
+  }
+  function endDrag() {
+    dragId = null;
+    app.classList.remove("dragging");
+    if (dropEl) { dropEl.classList.remove("hov"); dropEl = null; }
+    grid.querySelectorAll(".card.src").forEach((n) => n.classList.remove("src"));
+  }
+  const closest = (e, sel) => (e.target && e.target.closest ? e.target.closest(sel) : null);
+
+  grid.addEventListener("click", (e) => {
+    if (!A || A.readonly) return;
+    const card = closest(e, ".card");
+    if (card) { onCard(card); return; }
+    const cell = closest(e, ".c");
+    if (cell && A.sel != null) move(String(A.sel), cell.dataset.r, Number(cell.dataset.d), Number(cell.dataset.s), cell);
   });
-  const l = A.lessons.find(x => x.id === A.sel);
-  setMsg(fmt(T.moving, {t: l ? l.title : "", d: l ? l.duration : "", s: l ? l.sub : ""}));
-  const first = document.querySelector(`td.c[data-row="${CSS.escape(rs[0] || "")}"]`);
-  if (first && lastSel !== A.sel) { first.scrollIntoView({block: "nearest", inline: "nearest"}); lastSel = A.sel; }
-}
-function move(lid, td) {
-  if (!rowsOf(lid).includes(td.dataset.row)) { setMsg(T.other_row); return; }
-  const st = ARGS.sel === lid && ARGS.status ? ARGS.status[td.dataset.key] : null;
-  if (st && st[0] === "current") return;
-  if (st && st[0] === "red") { setMsg(fmt(T.not_allowed, {m: st[1]})); return; }
-  const [d, s] = td.dataset.key.split(",").map(Number);
-  send("streamlit:setComponentValue", {value: {type: "move", lid, day: d, slot: s, nonce: Date.now()}, dataType: "json"});
-  setMsg(T.applying);
-}
-window.addEventListener("message", e => {
-  if (e.data.type !== "streamlit:render") return;
-  ARGS = e.data.args.data; T = ARGS.i18n || {};
-  document.documentElement.dir = ARGS.rtl ? "rtl" : "ltr";
-  document.getElementById("legend").innerHTML = ARGS.readonly ? "" :
-    `<span><i style="background:#2ea043"></i>${T.free}</span><span><i style="background:#d4a400"></i>${T.swap}</span>` +
-    (ARGS.free ? `<span><i style="background:#e67e22"></i>${T.forced}</span>` : "") +
-    `<span><i style="background:#e5534b"></i>${T.impossible}</span><span><i style="background:#4a7bd0"></i>${T.current}</span>`;
-  render();
-});
-send("streamlit:componentReady", {apiVersion: 1});
+  grid.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const el = closest(e, ".card, .c");
+    if (el) { e.preventDefault(); el.click(); }
+  });
+  grid.addEventListener("dragstart", (e) => {
+    const card = closest(e, ".card");
+    if (!A || A.readonly || !card || card.getAttribute("draggable") !== "true") { e.preventDefault(); return; }
+    dragId = card.dataset.id;
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", dragId); } catch (err) { /* ignore */ } }
+    card.classList.add("src");
+    setTimeout(() => { if (dragId) app.classList.add("dragging"); }, 0);
+  });
+  grid.addEventListener("dragend", endDrag);
+  grid.addEventListener("dragover", (e) => {
+    if (!dragId) return;
+    const cell = closest(e, ".c");
+    if (!cell) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    if (dropEl !== cell) { if (dropEl) dropEl.classList.remove("hov"); dropEl = cell; cell.classList.add("hov"); explain(cell, dragId); }
+  });
+  grid.addEventListener("drop", (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const cell = closest(e, ".c"), id = dragId;
+    endDrag();
+    if (cell) move(id, cell.dataset.r, Number(cell.dataset.d), Number(cell.dataset.s), cell);
+  });
+  grid.addEventListener("mouseover", (e) => {
+    if (dragId || !picking()) return;
+    const el = closest(e, ".c, .card");
+    if (!el || el === tipEl) return;
+    tipEl = el;
+    explain(el, String(A.sel));
+  });
+  grid.addEventListener("mouseleave", () => { tipEl = null; if (!dragId && A && !app.classList.contains("busy")) setMsg(baseMsg()); });
+
+  $("days").addEventListener("click", (e) => { const b = closest(e, "button[data-day]"); if (b) { day = Number(b.dataset.day); render(); } });
+  $("density").addEventListener("click", () => { compact = !compact; store.set("compact", compact); render(); });
+  $("expand").addEventListener("click", () => { expanded = !expanded; store.set("expanded", expanded); render(); });
+  $("q").addEventListener("input", debounce(() => { query = $("q").value || ""; render(); }, 120));
+  $("selx").addEventListener("click", cancelSelection);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") cancelSelection(); });
+  window.addEventListener("resize", syncHeight);
+
+  window.addEventListener("message", (e) => {
+    const d = e.data;
+    if (!d || d.type !== "streamlit:render") return;
+    const th = d.theme;
+    if (th && typeof th === "object") {
+      root.setAttribute("data-theme", th.base === "dark" ? "dark" : "light");
+      if (cssColor(th.primaryColor)) root.style.setProperty("--accent", th.primaryColor);
+    }
+    A = normalize(d.args && d.args.data);
+    T = A.i18n;
+    U = A.rtl ? UI.ar : UI.en;
+    root.dir = A.rtl ? "rtl" : "ltr";
+    root.lang = A.rtl ? "ar" : "en";
+    byId = new Map(A.lessons.map((l) => [String(l.id), l]));
+    clearPending();
+    render();
+  });
+  send("streamlit:componentReady", {apiVersion: 1});
+})();
 </script>
 </body>
 </html>

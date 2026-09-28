@@ -30,6 +30,7 @@ import guide
 import presolve
 import reception
 import store as dbstore
+from ui_theme import apply_ui_theme      # UETOS UI kit - CSS-only theme (no logic)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE = os.path.join(HERE, "sample_data")
@@ -126,6 +127,7 @@ if i18n.is_ar():
       section[data-testid="stSidebar"] { font-size: 15px; }
     </style>""", unsafe_allow_html=True)
 
+apply_ui_theme(st)                        # UETOS UI kit - modern look, injected before the banner
 st.markdown(f"""
 <div class="app-hero">
   <div class="app-hero-title">🗓️ {t("app_title")}</div>
