@@ -1,0 +1,10 @@
+ortools
+pandas
+streamlit
+openpyxl
+reportlab
+arabic-reshaper
+python-bidi
+matplotlib
+sqlalchemy>=2.0
+pymysql>=1.1

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; font-size: 13px; color: #262730; }
+  #grid { display: grid; grid-template-columns: 90px repeat(5, 1fr); gap: 3px; user-select: none; }
+  .hdr { font-weight: 700; text-align: center; padding: 6px 0; background: #f0f2f6; border-radius: 6px; }
+  .slotlbl { display: flex; align-items: center; justify-content: center; background: #f0f2f6; border-radius: 6px; font-weight: 600; font-size: 12px; }
+  .lunch { grid-column: 1 / span 6; text-align: center; font-size: 11px; color: #888; background: repeating-linear-gradient(45deg,#fafafa,#fafafa 6px,#f0f0f0 6px,#f0f0f0 12px); border-radius: 4px; height: 16px; line-height: 16px; }
+  .cell { min-height: 54px; border: 1px dashed #d6d6d6; border-radius: 6px; transition: background .08s; }
+  .cell.off { background: #f7f7f7; }
+  .stack { z-index: 2; display: flex; flex-direction: column; gap: 1px; pointer-events: none; }
+  .stack .card { pointer-events: auto; margin: 1px 2px; padding: 2px 6px; }
+  .card.mini .t { font-size: 11px; } .card.mini .s { font-size: 10px; }
+  .cell.green  { background: #c8f7c5; border: 2px solid #2ea043; }
+  .cell.yellow { background: #fff3b0; border: 2px solid #d4a400; }
+  .cell.red    { background: #ffd6d6; border: 2px solid #e5534b; }
+  .cell.current{ background: #dbe8ff; border: 2px solid #4a7bd0; }
+  .cell.hover  { outline: 3px solid #262730; outline-offset: -3px; }
+  .card { z-index: 2; margin: 2px; padding: 5px 7px; border-radius: 7px; cursor: grab; color: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,.25); overflow: hidden; line-height: 1.25; }
+  .card.locked { cursor: not-allowed; opacity: .8; background-image: repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(255,255,255,.15) 5px,rgba(255,255,255,.15) 10px); }
+  .card.sel { outline: 3px solid #262730; }
+  .card .t { font-weight: 700; font-size: 13px; }
+  .card .s { font-size: 11px; opacity: .92; }
+  .dragging .card { pointer-events: none; }
+  .picking .card:not(.sel):not(.src) { opacity: .35; }
+  .picking .card.sel { opacity: .9; }
+  .dragging .card.src { opacity: .35; }
+  .cell.win { background: repeating-linear-gradient(-45deg,#fff4e0,#fff4e0 6px,#ffe2b3 6px,#ffe2b3 12px); border: 1px solid #f0a020; }
+  .cell.win::after { content: attr(data-win); display: block; font-size: 10px; color: #b36b00; text-align: center; padding-top: 18px; }
+  .cell.target { background: #e8e0ff; border: 2px solid #7b5cd6; }
+  .targeting .card { opacity: .3; }
+  .targeting .card.cand-green  { opacity: 1; outline: 4px solid #2ea043; cursor: pointer; }
+  .targeting .card.cand-yellow { opacity: 1; outline: 4px solid #d4a400; cursor: pointer; }
+  .opt { display: inline-block; margin: 3px 4px 0 0; padding: 3px 8px; border-radius: 12px; cursor: pointer; border: 1px solid #ccc; background: #fff; }
+  .opt.green { border-color: #2ea043; } .opt.yellow { border-color: #d4a400; }
+  .opt:hover { background: #f5f5f5; }
+  #bar { margin-top: 8px; min-height: 38px; padding: 8px 10px; border-radius: 6px; background: #f0f2f6; font-size: 13px; }
+  .legend span { display: inline-block; margin-inline-end: 12px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-inline-end: 4px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div id="grid"></div>
+<div id="bar"><div class="legend" id="legend"></div><div id="msg"></div></div>
+
+<script>
+let DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday"];
+let T = {};
+const fmt = (s, kw) => s.replace(/\{(\w+)\}/g, (_, k) => kw[k] ?? "");
+const PALETTE = ["#4e79a7","#6b6ecf","#8c6d31","#7b4173","#3182bd","#636363","#5254a3","#843c39","#393b79","#637939","#9c755f","#17608a"];
+let ARGS = null, dragId = null, selId = null, lastNonce = 0, tgtKey = null;
+
+function send(type, extra) { window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra), "*"); }
+const rowOf = s => s < 4 ? s + 2 : s + 3;      // row 1 = header, row 6 = lunch strip
+function color(key) { let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; }
+
+function render() {
+  const g = document.getElementById("grid"); g.innerHTML = "";
+  const add = (el, r, c, span) => { el.style.gridRow = span ? `${r} / span ${span}` : r; el.style.gridColumn = c; g.appendChild(el); return el; };
+  add(Object.assign(document.createElement("div"), {className: "hdr", textContent: ARGS.title}), 1, 1);
+  DAYS.forEach((d, i) => add(Object.assign(document.createElement("div"), {className: "hdr", textContent: d}), 1, i + 2));
+  const lunch = Object.assign(document.createElement("div"), {className: "lunch", textContent: T.lunch}); lunch.style.gridRow = 6; g.appendChild(lunch);
+  for (let s = 0; s < 7; s++) {
+    add(Object.assign(document.createElement("div"), {className: "slotlbl", textContent: ARGS.slots[s]}), rowOf(s), 1);
+    for (let d = 0; d < 5; d++) {
+      const c = add(Object.assign(document.createElement("div"), {className: "cell" + (d === 2 && s >= 4 ? " off" : "")}), rowOf(s), d + 2);
+      c.dataset.key = `${d},${s}`;
+      if ((ARGS.windows || []).includes(c.dataset.key)) { c.classList.add("win"); c.dataset.win = "🚫 " + T.win; c.title = T.win_msg; }
+      c.addEventListener("dragover", e => { if (!dragId) return; e.preventDefault(); hover(c); });
+      c.addEventListener("dragleave", () => c.classList.remove("hover"));
+      c.addEventListener("drop", e => { e.preventDefault(); drop(dragId, c.dataset.key); });
+      c.addEventListener("click", () => {
+        if (selId) { drop(selId, c.dataset.key); return; }
+        if (d === 2 && s >= 4) return;
+        if (c.classList.contains("win")) { tgtKey = null; target(); setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: 🚫 ${T.win_msg}`); return; }
+        tgtKey = (tgtKey === c.dataset.key) ? null : c.dataset.key; target(); });
+    }
+  }
+  const stacks = {};          // lessons sharing the same cell(s) are stacked, not drawn on top of each other
+  for (const l of ARGS.lessons) {
+    const k = `${l.day},${l.start},${l.duration}`;
+    stacks[k] = (stacks[k] || 0) + 1;
+  }
+  const holders = {};
+  for (const l of ARGS.lessons) {
+    const el = document.createElement("div");
+    el.className = "card" + (l.locked ? " locked" : "") + (l.id === selId ? " sel" : "");
+    el.style.background = l.bg || color(l.colorKey);
+    el.innerHTML = `<div class="t">${l.title}</div><div class="s">${l.sub}</div>`;
+    el.title = l.tooltip;
+    el.draggable = !l.locked;
+    el.dataset.id = l.id;
+    const sk = `${l.day},${l.start},${l.duration}`;
+    if (stacks[sk] > 1) {
+      if (!holders[sk]) {
+        holders[sk] = add(Object.assign(document.createElement("div"), {className: "stack"}), rowOf(l.start), l.day + 2, l.duration);
+      }
+      el.classList.add("mini");
+      holders[sk].appendChild(el);
+    } else {
+      add(el, rowOf(l.start), l.day + 2, l.duration);
+    }
+    el.addEventListener("dragstart", e => {
+      dragId = l.id; e.dataTransfer.setData("text/plain", l.id); e.dataTransfer.effectAllowed = "move";
+      paint(l.id); el.classList.add("src");
+      setTimeout(() => document.body.classList.add("dragging"), 0);
+    });
+    el.addEventListener("dragend", () => { dragId = null; document.body.classList.remove("dragging"); el.classList.remove("src"); if (!selId) paint(null); });
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      if (tgtKey) {
+        const st = ARGS.status[l.id][tgtKey][0];
+        if (st === "green" || st === "yellow") { const k = tgtKey; tgtKey = null; drop(l.id, k); return; }
+        tgtKey = null; target();
+      }
+      selId = (selId === l.id || l.locked) ? null : l.id; render(); paint(selId); });
+  }
+  send("streamlit:setFrameHeight", {height: document.body.scrollHeight + 10});
+}
+
+function paint(lid) {
+  document.querySelectorAll(".cell").forEach(c => {
+    c.classList.remove("green", "yellow", "red", "current", "hover");
+    if (!lid) { c.title = ""; return; }
+    const [st, msg] = ARGS.status[lid][c.dataset.key];
+    c.classList.add(st); c.title = msg;
+  });
+  document.body.classList.toggle("picking", !!lid);
+  const l = ARGS.lessons.find(x => x.id === lid);
+  setMsg(lid ? fmt(T.moving, {t: l.title, d: l.duration, s: l.sub}) : T.hint);
+}
+function target() {
+  document.querySelectorAll(".cell").forEach(c => c.classList.remove("target", "green", "yellow", "red", "current", "hover"));
+  document.querySelectorAll(".card").forEach(c => c.classList.remove("cand-green", "cand-yellow"));
+  document.body.classList.remove("picking");
+  document.body.classList.toggle("targeting", !!tgtKey);
+  if (!tgtKey) { setMsg(T.hint); return; }
+  document.querySelector(`.cell[data-key="${tgtKey}"]`).classList.add("target");
+  const [d, s] = tgtKey.split(",");
+  const opts = [];
+  for (const l of ARGS.lessons) {
+    const [st, msg] = ARGS.status[l.id][tgtKey];
+    if (st !== "green" && st !== "yellow") continue;
+    opts.push([st, l, msg]);
+    const card = document.querySelector(`.card[data-id="${l.id}"]`);
+    if (card) card.classList.add("cand-" + st);
+  }
+  opts.sort((a, b) => (a[0] === "green" ? 0 : 1) - (b[0] === "green" ? 0 : 1));
+  const head = `<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: `;
+  if (!opts.length) { setMsg(head + T.tgt_none); return; }
+  setMsg(head + fmt(T.tgt_head, {n: opts.length}) + "<br>" + opts.map(([st, l, msg], i) =>
+    `<span class="opt ${st}" data-i="${i}" title="${msg.replace(/"/g, "&quot;")}">${st === "green" ? "🟢" : "🟡"} ${l.title} · ${DAYS[l.day]} ${ARGS.slots[l.start]}</span>`).join(""));
+  document.querySelectorAll(".opt").forEach(o => o.addEventListener("click", () => {
+    const l = opts[+o.dataset.i][1]; const k = tgtKey; tgtKey = null; drop(l.id, k); }));
+}
+function hover(c) {
+  document.querySelectorAll(".cell.hover").forEach(x => x !== c && x.classList.remove("hover"));
+  c.classList.add("hover");
+  const [st, msg] = ARGS.status[dragId][c.dataset.key];
+  const [d, s] = c.dataset.key.split(",");
+  setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: <span style="color:${{green:"#2ea043",yellow:"#9a7700",red:"#e5534b",current:"#4a7bd0"}[st]}">${T["st_" + st]}</span> – ${msg}`);
+}
+function drop(lid, key) {
+  const [st, msg] = ARGS.status[lid][key];
+  if (st === "red") { setMsg(fmt(T.not_allowed, {m: msg})); return; }
+  if (st === "current") { return; }
+  const [d, s] = key.split(",").map(Number);
+  selId = null;
+  send("streamlit:setComponentValue", {value: {lid, day: d, slot: s, nonce: Date.now()}, dataType: "json"});
+  setMsg(T.applying);
+}
+function setMsg(h) { document.getElementById("msg").innerHTML = h; send("streamlit:setFrameHeight", {height: document.body.scrollHeight + 10}); }
+
+window.addEventListener("message", e => {
+  if (e.data.type !== "streamlit:render") return;
+  ARGS = e.data.args.data; T = ARGS.i18n; DAYS = ARGS.days;
+  document.documentElement.dir = ARGS.rtl ? "rtl" : "ltr";
+  document.getElementById("legend").innerHTML =
+    `<span><i style="background:#2ea043"></i>${T.free}</span><span><i style="background:#d4a400"></i>${T.swap}</span>` +
+    `<span><i style="background:#e5534b"></i>${T.impossible}</span><span><i style="background:#4a7bd0"></i>${T.current}</span>`;
+  render(); if (tgtKey) target(); else paint(selId);
+});
+send("streamlit:componentReady", {apiVersion: 1});
+</script>
+</body>
+</html>

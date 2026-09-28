@@ -1,0 +1,12 @@
+Subject_Code,Day_Index,Blocked_Slots,Description
+ARABIC,1,0;1;2;3,Monday Morning Arabic Inspection
+ISLAMIC,1,0;1;2;3,Monday Morning Islamic Studies Inspection
+FRENCH,2,0;1;2;3,Tuesday Morning French Inspection
+ENGLISH,2,0;1;2;3,Tuesday Morning English Inspection
+INFO,2,0;1;2;3,Tuesday Morning Informatics Inspection
+PHYS,3,0;1;2;3,Wednesday Morning Physics Inspection
+SCIENCE,3,0;1;2;3,Wednesday Morning Natural Science Inspection
+MATH,4,0;1;2;3,Thursday Morning Mathematics Inspection
+MUSIC,4,0;1;2;3,Thursday Morning Art/Music Inspection
+HISTGEO,0,0;1;2;3,Sunday Morning History-Geography Inspection
+SPORT,0,0;1;2;3,Sunday Morning Physical Education Inspection

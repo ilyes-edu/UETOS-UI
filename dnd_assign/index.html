@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  body { font-family: "Segoe UI", Tahoma, sans-serif; margin: 0; padding: 4px; font-size: 13px; color: #1b1b1b; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .tab { border: 1px solid #ccc; border-radius: 16px; padding: 3px 10px; cursor: pointer; background: #fff; user-select: none; }
+  .tab.on { color: #fff; border-color: transparent; }
+  .tab .st { font-size: 11px; margin-inline-start: 4px; }
+  .sec { margin-bottom: 12px; }
+  .sec h4 { margin: 6px 0; font-size: 14px; }
+  .cols { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+  .col { width: 170px; border: 2px solid #e0e0e0; border-radius: 8px; background: #fafafa; min-height: 80px; }
+  .col.pool { border-style: dashed; background: #fff8e1; }
+  .col.over { border-color: #e53935; }
+  .col.full { border-color: #43a047; }
+  .col.drop { outline: 3px solid #1e88e5; }
+  .col.nodrop { opacity: .35; }
+  .hd { padding: 5px 7px; border-bottom: 1px solid #e0e0e0; }
+  .nm { font-weight: 600; }
+  .tags span { font-size: 10px; background: #eee; border-radius: 6px; padding: 0 4px; margin-inline-end: 3px; }
+  .bar { height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; }
+  .tot { font-size: 12px; margin-top: 2px; }
+  .body { padding: 5px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 36px; }
+  .chip { border-radius: 6px; padding: 3px 6px; cursor: grab; font-size: 12px; border-inline-start: 4px solid; user-select: none; }
+  .chip small { opacity: .7; }
+  .hint { color: #999; font-size: 11px; padding: 6px; }
+  .col.sel { border-color: #1e88e5; box-shadow: 0 0 0 3px rgba(30,136,229,.25); background: #eef6fe; }
+  .hd { cursor: pointer; position: relative; }
+  .hd:hover { background: #f0f4f8; }
+  .x { position: absolute; top: 3px; inset-inline-end: 4px; border: none; background: transparent; color: #999;
+       cursor: pointer; font-size: 13px; padding: 0 3px; border-radius: 4px; }
+  .x:hover { background: #ffebee; color: #c62828; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 2px 0 8px; }
+  .btn { border: 1px solid #cfd8dc; background: #fff; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  .btn:hover { background: #f5f5f5; }
+  .btn.warn { border-color: #ef9a9a; color: #c62828; }
+  .mode { background: #e3f2fd; color: #0d47a1; border-radius: 8px; padding: 4px 10px; font-size: 12px; }
+  .chip.pick { cursor: pointer; outline: 2px dashed #1e88e5; }
+  .flash { animation: fl .5s; } @keyframes fl { from { background: #ffcdd2; } }
+</style></head>
+<body><div id="app"></div>
+<script>
+const send = (type, extra) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra), "*");
+const H = () => send("streamlit:setFrameHeight", {height: document.body.scrollHeight + 10});
+let D = null, CUR = null, drag = null, lastKey = null, SEL = null;
+function commit(moves) {
+  if (!moves.length) return;
+  moves.forEach(m => { const it = D.items.find(i => i.cls === m.cls && i.subject === m.subject); if (it) it.teacher = m.teacher; });
+  draw();
+  // send the WHOLE assignment: fast successive clicks can never lose a move
+  send("streamlit:setComponentValue", {value: {assign: D.items.map(i => [i.cls, i.subject, i.teacher]),
+                                               nonce: Date.now() + Math.random()}, dataType: "json"});
+}
+function clearWhere(pred) {
+  commit(D.items.filter(i => i.teacher && pred(i)).map(i => ({cls: i.cls, subject: i.subject, teacher: null})));
+}
+
+function totals() {
+  const t = {};
+  D.items.forEach(it => { if (it.teacher) t[it.teacher] = (t[it.teacher] || 0) + it.hours; });
+  return t;
+}
+function subjStatus(code, tot) {
+  const un = D.items.filter(i => i.subject === code && !i.teacher).length;
+  const over = D.teachers.filter(x => x.subject === code && (tot[x.name] || 0) > x.cap).length;
+  return un || over ? "⚠️" : "✅";
+}
+function chip(it, subj) {
+  const c = document.createElement("div");
+  c.className = "chip"; c.draggable = true;
+  c.style.background = subj.light; c.style.borderColor = subj.color;
+  c.innerHTML = `${it.label} <small>${it.hours}${T.h}</small>`;
+  c.addEventListener("dragstart", e => { drag = it; e.dataTransfer.setData("text", it.cls); setTimeout(() => mark(true), 0); });
+  c.addEventListener("dragend", () => { drag = null; mark(false); });
+  if (SEL) {
+    const selT = D.teachers.find(x => x.name === SEL);
+    if (selT && selT.subject === it.subject) c.classList.add("pick");
+  }
+  c.addEventListener("click", () => {
+    if (!SEL) return;
+    const selT = D.teachers.find(x => x.name === SEL);
+    if (!selT || selT.subject !== it.subject) { c.classList.remove("flash"); void c.offsetWidth; c.classList.add("flash"); return; }
+    commit([{cls: it.cls, subject: it.subject, teacher: it.teacher === SEL ? null : SEL}]);
+  });
+  return c;
+}
+function mark(on) {
+  document.querySelectorAll(".col").forEach(el => {
+    el.classList.toggle("nodrop", on && drag && el.dataset.subject !== drag.subject);
+  });
+}
+function column(title, teacher, subj, items, tot) {
+  const col = document.createElement("div");
+  col.className = "col" + (teacher ? "" : " pool");
+  col.dataset.subject = subj.code;
+  const hd = document.createElement("div"); hd.className = "hd";
+  if (teacher) {
+    const h = tot[teacher.name] || 0, pct = Math.min(100, 100 * h / Math.max(1, teacher.cap));
+    const clr = h > teacher.cap ? "#e53935" : h === teacher.cap ? "#43a047" : "#fb8c00";
+    col.classList.toggle("over", h > teacher.cap); col.classList.toggle("full", h === teacher.cap);
+    const tags = (teacher.mum ? "<span>مميز</span>" : "") + (teacher.rem ? `<span>${T.rem} +${teacher.full - teacher.cap}</span>` : "");
+    col.classList.toggle("sel", SEL === teacher.name);
+    hd.title = T.select_tip;
+    hd.onclick = e => { if (e.target.classList.contains("x")) return; SEL = SEL === teacher.name ? null : teacher.name; draw(); };
+    hd.innerHTML = `<button class="x" title="${T.clear_t}">✖</button><div class="nm">${teacher.name}</div><div class="tags">${tags}</div>
+      <div class="bar"><i style="width:${pct}%;background:${clr}"></i></div>
+      <div class="tot" style="color:${clr}"><b>${h}</b> / ${teacher.cap} ${T.h}</div>`;
+  } else {
+    hd.innerHTML = `<div class="nm">${title}</div><div class="tot">${items.reduce((s, i) => s + i.hours, 0)} ${T.h}</div>`;
+  }
+  col.appendChild(hd);
+  const xb = hd.querySelector(".x");
+  if (xb) xb.onclick = () => clearWhere(i => i.teacher === teacher.name);
+  const body = document.createElement("div"); body.className = "body";
+  items.forEach(it => body.appendChild(chip(it, subj)));
+  if (!items.length) body.innerHTML = `<div class="hint">${T.drop}</div>`;
+  col.appendChild(body);
+  col.addEventListener("dragover", e => { if (drag && drag.subject === subj.code) { e.preventDefault(); col.classList.add("drop"); } });
+  col.addEventListener("dragleave", () => col.classList.remove("drop"));
+  col.addEventListener("drop", e => {
+    e.preventDefault(); col.classList.remove("drop");
+    if (!drag || drag.subject !== subj.code) return;
+    const to = teacher ? teacher.name : null;
+    if (drag.teacher === to) return;
+    const moved = {cls: drag.cls, subject: drag.subject, teacher: to};
+    drag = null; commit([moved]);
+  });
+  return col;
+}
+function draw() {
+  const app = document.getElementById("app"); app.innerHTML = "";
+  document.body.dir = D.rtl ? "rtl" : "ltr";
+  const tot = totals();
+  const tabs = document.createElement("div"); tabs.className = "tabs";
+  const mk = (code, label, color) => {
+    const b = document.createElement("div"); b.className = "tab" + (CUR === code ? " on" : "");
+    if (CUR === code) b.style.background = color || "#455a64";
+    b.innerHTML = label + (code ? `<span class="st">${subjStatus(code, tot)}</span>` : "");
+    b.onclick = () => { CUR = code; draw(); };
+    tabs.appendChild(b);
+  };
+  mk(null, T.all, "#455a64");
+  D.subjects.forEach(s => mk(s.code, s.name, s.color));
+  app.appendChild(tabs);
+  const bar = document.createElement("div"); bar.className = "toolbar";
+  const b1 = document.createElement("button"); b1.className = "btn warn";
+  b1.textContent = CUR ? T.clear_s : T.clear_a;
+  b1.onclick = () => clearWhere(i => CUR === null || i.subject === CUR);
+  bar.appendChild(b1);
+  if (CUR) {
+    const b2 = document.createElement("button"); b2.className = "btn warn"; b2.textContent = T.clear_a;
+    b2.onclick = () => { if (confirm(T.confirm_all)) clearWhere(() => true); };
+    bar.appendChild(b2);
+  }
+  const m = document.createElement("span"); m.className = "mode";
+  m.textContent = SEL ? T.mode_on.replace("{t}", SEL) : T.mode_off;
+  bar.appendChild(m);
+  if (SEL) { const b3 = document.createElement("button"); b3.className = "btn"; b3.textContent = T.mode_stop;
+             b3.onclick = () => { SEL = null; draw(); }; bar.appendChild(b3); }
+  app.appendChild(bar);
+  D.subjects.filter(s => CUR === null || CUR === s.code).forEach(s => {
+    const sec = document.createElement("div"); sec.className = "sec";
+    const h = document.createElement("h4"); h.style.color = s.color; h.textContent = s.name; sec.appendChild(h);
+    const cols = document.createElement("div"); cols.className = "cols";
+    const mine = D.items.filter(i => i.subject === s.code);
+    const pool = mine.filter(i => !i.teacher);
+    if (pool.length || CUR !== null) cols.appendChild(column(T.pool, null, s, pool, tot));
+    D.teachers.filter(x => x.subject === s.code).forEach(x => cols.appendChild(column("", x, s, mine.filter(i => i.teacher === x.name), tot)));
+    sec.appendChild(cols); app.appendChild(sec);
+  });
+  H();
+}
+let T = {};
+window.addEventListener("message", e => {
+  if (e.data.type !== "streamlit:render") return;
+  const data = e.data.args.data; T = data.i18n || {};
+  const key = JSON.stringify(data);
+  if (key === lastKey) return;          // keep the local state (and the chosen tab) between identical renders
+  lastKey = key; D = JSON.parse(key);
+  if (CUR === null && D.subjects.length) CUR = D.subjects[0].code;
+  draw();
+});
+send("streamlit:componentReady", {apiVersion: 1});
+</script></body></html>
