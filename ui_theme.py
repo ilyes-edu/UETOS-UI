@@ -37,7 +37,7 @@ div[data-testid="stElementContainer"]:has(div[data-testid="stMarkdownContainer"]
     radial-gradient(900px 360px at -10% 0%, rgba(31, 111, 168, .05), transparent 55%);
   background-attachment: fixed;
 }
-.block-container, [data-testid="stMainBlockContainer"] { max-width: 1560px; padding-top: 1.2rem; padding-bottom: 3rem; }
+.block-container, [data-testid="stMainBlockContainer"] { max-width: 1560px; padding-top: 4.5rem;   /* below the 60px sticky header */ padding-bottom: 3rem; }
 header[data-testid="stHeader"] { background: rgba(245, 248, 252, .78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 div[data-testid="stDecoration"] { display: none; }
 .stApp h1, .stApp h2, .stApp h3 { letter-spacing: -.01em; }
@@ -60,20 +60,22 @@ div[data-testid="stDecoration"] { display: none; }
 .beta-badge { background: #ffcf5c; color: #3a2900; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
 .app-hero-sub { opacity: .9; margin-top: 6px; }
 
-/* sidebar + page menu (the navigation radio has key="page") */
+/* sidebar + page menu (the navigation radio has key="page"; Streamlit >= 1.5x uses label[data-testid=stRadioOption]) */
 section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
   background-image: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 260px);
 }
+/* collapsed sidebar: in RTL Streamlit shrinks it to 0px but its text still overflows as a thin column - hide it */
+section[data-testid="stSidebar"][aria-expanded="false"] { visibility: hidden; overflow: hidden; }
 .st-key-page [role="radiogroup"] { gap: .3rem; }
-.st-key-page label[data-baseweb="radio"] {
+.st-key-page :is(label[data-baseweb="radio"], label[data-testid="stRadioOption"]) {
   width: 100%; margin: 0; padding: .5rem .7rem; border-radius: 12px; border: 1px solid transparent;
   transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
-.st-key-page label[data-baseweb="radio"]:hover { background: rgba(31, 111, 168, .07); }
-.st-key-page label[data-baseweb="radio"]:has(input:checked) {
+.st-key-page :is(label[data-baseweb="radio"], label[data-testid="stRadioOption"]):hover { background: rgba(31, 111, 168, .07); }
+.st-key-page :is(label[data-baseweb="radio"], label[data-testid="stRadioOption"]):has(input:checked) {
   background: rgba(255, 255, 255, .92); border-color: var(--u-line); box-shadow: var(--u-shadow);
 }
-.st-key-page label[data-baseweb="radio"]:has(input:checked) p { color: var(--u-accent); font-weight: 600; }
+.st-key-page :is(label[data-baseweb="radio"], label[data-testid="stRadioOption"]):has(input:checked) p { color: var(--u-accent); font-weight: 600; }
 
 /* buttons */
 .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
@@ -109,7 +111,7 @@ div[role="dialog"] { border-radius: 18px; }
   header[data-testid="stHeader"], section[data-testid="stSidebar"] { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .stButton > button, .stDownloadButton > button, .st-key-page label[data-baseweb="radio"] { transition: none; }
+  .stButton > button, .stDownloadButton > button, .st-key-page :is(label[data-baseweb="radio"], label[data-testid="stRadioOption"]) { transition: none; }
 }
 </style>
 """

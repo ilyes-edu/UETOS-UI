@@ -29,6 +29,7 @@
   .card.mini .t { font-size: 11px; } .card.mini .s { font-size: 10px; }
   .cell.green  { background: var(--green-bg); border: 2px solid var(--green); }
   .cell.yellow { background: var(--yellow-bg); border: 2px solid var(--yellow); }
+  .cell.orange { background: #ffe6d1; border: 2px solid #dd6b20; }
   .cell.red    { background: var(--red-bg); border: 2px solid color-mix(in srgb, var(--red) 55%, transparent); }
   .cell.current{ background: var(--blue-bg); border: 2px solid var(--blue); }
   .cell.hover  { outline: 3px solid var(--text); outline-offset: -3px; }
@@ -106,6 +107,7 @@ function render() {
       c.addEventListener("dragleave", () => c.classList.remove("hover"));
       c.addEventListener("drop", e => { e.preventDefault(); drop(dragId, c.dataset.key); });
       c.addEventListener("click", () => {
+        if (ARGS.readonly) return;
         if (selId) { drop(selId, c.dataset.key); return; }
         if (d === 2 && s >= 4) return;
         if (c.classList.contains("win")) { tgtKey = null; target(); setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: 🚫 ${T.win_msg}`); return; }
@@ -124,7 +126,8 @@ function render() {
     el.style.background = l.bg || color(l.colorKey);
     el.innerHTML = `<div class="t">${l.title}</div><div class="s">${l.sub}</div>`;
     el.title = l.tooltip;
-    el.draggable = !l.locked;
+    el.draggable = !l.locked && !ARGS.readonly;
+    if (ARGS.readonly) el.style.cursor = "default";
     el.dataset.id = l.id;
     const sk = `${l.day},${l.start},${l.duration}`;
     if (stacks[sk] > 1) {
@@ -144,6 +147,7 @@ function render() {
     el.addEventListener("dragend", () => { dragId = null; document.body.classList.remove("dragging"); el.classList.remove("src"); if (!selId) paint(null); });
     el.addEventListener("click", e => {
       e.stopPropagation();
+      if (ARGS.readonly) return;
       if (tgtKey) {
         const st = ARGS.status[l.id][tgtKey][0];
         if (st === "green" || st === "yellow") { const k = tgtKey; tgtKey = null; drop(l.id, k); return; }
@@ -156,7 +160,7 @@ function render() {
 
 function paint(lid) {
   document.querySelectorAll(".cell").forEach(c => {
-    c.classList.remove("green", "yellow", "red", "current", "hover");
+    c.classList.remove("green", "yellow", "orange", "red", "current", "hover");
     if (!lid) { c.title = ""; return; }
     const [st, msg] = ARGS.status[lid][c.dataset.key];
     c.classList.add(st); c.title = msg;
@@ -166,7 +170,7 @@ function paint(lid) {
   setMsg(lid ? fmt(T.moving, {t: l.title, d: l.duration, s: l.sub}) : T.hint);
 }
 function target() {
-  document.querySelectorAll(".cell").forEach(c => c.classList.remove("target", "green", "yellow", "red", "current", "hover"));
+  document.querySelectorAll(".cell").forEach(c => c.classList.remove("target", "green", "yellow", "orange", "red", "current", "hover"));
   document.querySelectorAll(".card").forEach(c => c.classList.remove("cand-green", "cand-yellow"));
   document.body.classList.remove("picking");
   document.body.classList.toggle("targeting", !!tgtKey);
@@ -194,7 +198,7 @@ function hover(c) {
   c.classList.add("hover");
   const [st, msg] = ARGS.status[dragId][c.dataset.key];
   const [d, s] = c.dataset.key.split(",");
-  setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: <span style="color:${{green:"#2ea043",yellow:"#9a7700",red:"#e5534b",current:"#4a7bd0"}[st]}">${T["st_" + st]}</span> – ${msg}`);
+  setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: <span style="color:${{green:"#2ea043",yellow:"#9a7700",orange:"#dd6b20",red:"#e5534b",current:"#4a7bd0"}[st]}">${T["st_" + st]}</span> – ${msg}`);
 }
 function drop(lid, key) {
   const [st, msg] = ARGS.status[lid][key];
@@ -213,7 +217,9 @@ window.addEventListener("message", e => {
   document.documentElement.dir = ARGS.rtl ? "rtl" : "ltr";
   document.getElementById("legend").innerHTML =
     `<span><i style="background:#2ea043"></i>${T.free}</span><span><i style="background:#d4a400"></i>${T.swap}</span>` +
+    (ARGS.free ? `<span><i style="background:#dd6b20"></i>${T.forced}</span>` : "") +
     `<span><i style="background:#e5534b"></i>${T.impossible}</span><span><i style="background:#4a7bd0"></i>${T.current}</span>`;
+  document.getElementById("bar").style.display = ARGS.readonly ? "none" : "";
   render(); if (tgtKey) target(); else paint(selId);
 });
 send("streamlit:componentReady", {apiVersion: 1});

@@ -13,7 +13,7 @@ import i18n
 from i18n import t
 from engine import (SchoolDataLoader, SchedulerConfig, SchoolSchedulerEngine,
                     SolutionManager, calculate_all_kpis, export_editable_state, teacher_stats, class_stats, class_slot_needs, teacher_fairness, grid_report,
-                    repair, RepairMismatch)
+                    repair, RepairMismatch, improve, IMPROVE_KPIS, IMPROVE_LINKS, cfg_from_dict)
 from editor import ScheduleEditor
 from assignment_matrix import (parse_assignment_matrix, read_any, build_matrix_xlsx,
                                validate_against_curriculum, CODE_TO_ARABIC, _class_key)
@@ -31,6 +31,9 @@ import presolve
 import reception
 import store as dbstore
 from ui_theme import apply_ui_theme      # UETOS UI kit - CSS-only theme (no logic)
+import curriculum as curr
+import zipfile
+import io
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE = os.path.join(HERE, "sample_data")
@@ -55,7 +58,7 @@ if lang_choice != st.session_state["lang"]:
 
 # ------------------------------------------------------------------ navigation (one page runs per rerun)
 ss = st.session_state
-PAGES = ["data", "plan", "run", "tt", "edit", "cmp", "guide"]
+PAGES = ["data", "plan", "run", "tt", "cmp", "guide"]
 _KEEP = {"src", "use_remedial", "max_time", "version_name", "allow_gaps", "allow_twice", "enforce_2h", "max_2h",
          "strict_grid", "morning_hard", "windows_hard", "lab_fallback", "prio", "workers"}
 for _k in list(ss.keys()):          # keep settings alive while their page is not displayed
@@ -65,6 +68,8 @@ if ss.pop("_reset_vn", False):
     ss.pop("version_name", None)
 if "_goto" in ss:
     ss["page"] = ss.pop("_goto")
+if ss.get("page") == "edit" or st.query_params.get("p") == "edit":      # the editor now lives in the Timetables page
+    ss["page"] = "tt"
 if ss.get("page") not in PAGES:
     ss["page"] = st.query_params.get("p") if st.query_params.get("p") in PAGES else "data"
 PAGE = ss["page"]
@@ -128,6 +133,7 @@ if i18n.is_ar():
     </style>""", unsafe_allow_html=True)
 
 apply_ui_theme(st)                        # UETOS UI kit - modern look, injected before the banner
+
 st.markdown(f"""
 <div class="app-hero">
   <div class="app-hero-title">🗓️ {t("app_title")}</div>
@@ -144,7 +150,8 @@ def get_store():
 
 DB = get_store()
 _ws_q = st.query_params.get("ws", "demo")
-WS = re.sub(r"[^\w\-]", "", st.sidebar.text_input(t("workspace"), _ws_q, help=t("workspace_help") + ("" if DB.persistent else "\n\n" + t("db_local"))).strip())[:40] or "demo"
+WS = re.sub(r"\s+", " ", re.sub(r"[^\w\- .]", "", st.sidebar.text_input(
+    t("workspace"), _ws_q, help=t("workspace_help") + ("" if DB.persistent else "\n\n" + t("db_local"))))).strip()[:60] or "demo"
 if WS != _ws_q:
     st.query_params["ws"] = WS
     st.session_state.pop("ed", None)
@@ -191,6 +198,9 @@ SIGNATURES = {
 }
 
 
+ASSIGN_NAME = re.compile(r"assign|اسناد|إسناد|الإسناد|توزيع", re.I)
+
+
 def detect(df, fname):
     cols = set(df.columns)
     for k, sig in SIGNATURES.items():
@@ -210,8 +220,8 @@ else:
     src = ss.get("src", "wizard")
 data_frames, report = {}, []
 WZ_PENDING = False
-wz_proj = wz.load_project(DB, WS) if src == "wizard" else None
-if src == "wizard":
+wz_proj = wz.load_project(DB, WS) if src in ("wizard", "upload") else None
+if src in ("wizard", "upload"):          # Upload = the same guide, filled from the files (+ bulk loading panel)
     if st.session_state.get("wz_open", wz_proj is None):
         if "wz" not in st.session_state and wz_proj is not None:      # reopen: start from the saved answers
             st.session_state["wz"] = wz_proj["answers"]
@@ -226,7 +236,7 @@ if src == "wizard":
                     del st.session_state[k]
                 st.session_state["wz_open"] = True
                 st.rerun()
-            if wz.render(st, dnd_assign, DB, WS):
+            if wz.render(st, dnd_assign, DB, WS, bulk=src == "upload"):
                 st.session_state["wz_open"] = False
                 goto("plan", t("wz_applied"))
             st.stop()
@@ -240,53 +250,6 @@ if src == "wizard":
                 st.rerun()
         data_frames = {k: v.copy() for k, v in wz_proj["frames"].items()}
         data_frames["grid"] = None
-elif src == "upload":
-    up_cache = ss.setdefault("up_cache", {})          # kind -> (file name, DataFrame); survives page changes
-    up_seen = ss.setdefault("up_seen", {})
-    if PAGE == "data":
-        ups = st.file_uploader(t("upload_csvs"), type=["csv", "xlsx"], accept_multiple_files=True,
-                               help=t("upload_help"), key="ups")
-        _added = []
-        for up in ups or []:
-            sig = f"{up.name}:{up.size}"
-            if up_seen.get(up.name) == sig:
-                continue                                # already parsed: no re-reading on every click
-            up_seen[up.name] = sig
-            try:
-                df = dl.read_table(up)
-            except Exception as ex:
-                st.error(f"{up.name} → {t('unreadable', e=ex)}"); continue
-            k = detect(df, up.name)
-            if k:
-                up_cache[k] = (up.name, df); _added.append(t("ds_" + k))
-            else:
-                st.warning(f"{up.name} → {t('not_recognised')}")
-        if _added:
-            st.toast(t("up_added", x=", ".join(_added)), icon="📂")
-    data_frames = {k: df_ for k, (fn_, df_) in up_cache.items()}
-    if PAGE == "data":
-        if up_cache:
-            c_l, c_r = st.columns([4, 1])
-            c_l.caption(t("up_cached") + " " + " · ".join(f"**{t('ds_' + k)}** ← {fn_}" for k, (fn_, _) in up_cache.items()))
-            if c_r.button(t("up_clear"), key="up_clear"):
-                ss["up_cache"], ss["up_seen"] = {}, {}
-                st.rerun()
-            _viss = validate.check_all([(fn_, k, df_) for k, (fn_, df_) in up_cache.items()], data_frames)
-            _nv = sum(len(v_) for v_ in _viss.values())
-            if _nv:
-                with st.expander(f"{validate.t('v_title')} ({_nv})", expanded=True):
-                    for fn_, lst_ in _viss.items():
-                        for ln_, msg_ in lst_[:60]:
-                            st.markdown(f"- **{fn_}** · {t('v_line', n=ln_)}: {msg_}")
-            else:
-                st.success(t("v_none"))
-        _tpl = {k: pd.read_csv(os.path.join(SAMPLE, f)) for k, f in FILES.items()
-                if k not in ("grid", "teachers") and os.path.exists(os.path.join(SAMPLE, f))}
-        c_t1, c_t2, _ = st.columns([1, 1, 2])
-        c_t1.download_button(t("tpl_csv"), dl.to_zip(_tpl), f"{t('tpl_name')}_csv.zip", "application/zip", width="stretch")
-        c_t2.download_button(t("tpl_xlsx"), dl.to_zip(_tpl, fmt="xlsx"), f"{t('tpl_name')}_xlsx.zip", "application/zip",
-                             width="stretch")
-    data_frames.setdefault("grid", None)
 else:
     # default example = the school files in sample_data/ (assignment.csv = اسناد)
     data_frames = {k: pd.read_csv(os.path.join(SAMPLE, f)) for k, f in FILES.items()
@@ -298,10 +261,7 @@ subj_map = st.session_state.get("subj_map", {})
 data_frames = sm.apply_to_frames(data_frames, subj_map)
 
 # ---- import a school assignment grid -> becomes the step-1 plan
-mx_file = None
-if src == "upload" and PAGE == "data":
-    st.markdown(t("grid_upload_title"))
-    mx_file = st.file_uploader(t("grid_upload"), type=["xlsx", "xls", "csv"], help=t("grid_upload_help"))
+mx_file = None                           # school assignment files are loaded through the guide (all modes)
 def import_plan(fileobj, fname, key, origin):
     if st.session_state.get("plan_src") == key:
         return
@@ -327,7 +287,7 @@ if mx_file is not None:
                 ("o_import", {"f": mx_file.name}))
 elif src == "sample" and os.path.exists(SAMPLE_ASSIGN):
     import_plan(SAMPLE_ASSIGN, SAMPLE_ASSIGN, f"sample:{sorted(subj_map.items())}", ("o_import", {"f": "اسناد.csv"}))
-elif src == "wizard" and wz_proj is not None:
+elif src in ("wizard", "upload") and wz_proj is not None:
     _k = f"wizard:{wz_proj['stamp']}"
     if st.session_state.get("plan_src") != _k:
         st.session_state.update(plan=wz_proj["plan"], plan_active=True, plan_src=_k, plan_origin=("o_wizard", {}))
@@ -350,6 +310,39 @@ if plan is not None:
     if "classes" not in data_frames:
         data_frames["classes"] = plan["classes"]
 
+if ss.get("curr_fix_src") != ss.get("plan_src"):
+    ss["curr_fix"], ss["curr_fix_src"] = {}, ss.get("plan_src")
+if ss.get("curr_fix") and plan is not None and data_frames.get("subjects") is not None:
+    data_frames["subjects"] = curr.apply_fixes(data_frames["subjects"], ss["curr_fix"],
+                                               curr.hours_fn(plan, data_frames))
+
+
+def mismatch_panel(key):
+    """Assignment ↔ curriculum differences; the manager corrects one of them.  Returns the number left."""
+    mm = curr.mismatches(plan, data_frames)
+    if not len(mm):
+        return 0
+    res = curr.render_panel(st, mm, key)
+    if res:
+        a_fix, c_fix = res
+        if a_fix:
+            p_ = ss["plan"]; a_ = p_["assignment"].copy()
+            for i_, h_ in a_fix.items():
+                a_.at[i_, "Hours"] = h_
+            rec_ = dict(zip(p_["teachers"]["Teacher_ID"], p_["teachers"].get("Requires_Reception", True)))
+            new_ = ap.finalize(a_, p_.get("remedial"), p_.get("max_hours"), reception=rec_)
+            for k_ in ("class_hours", "warnings", "notes"):
+                if k_ in p_:
+                    new_[k_] = p_[k_]
+            ss["plan"] = new_
+        if c_fix:
+            ss.setdefault("curr_fix", {}).update(c_fix); ss["curr_fix_src"] = ss.get("plan_src")
+        ss.pop("last", None)
+        ss["_toast"] = t("mm_done", a=len(a_fix), c=len(c_fix))
+        st.rerun()
+    return len(mm)
+
+
 missing = [k for k in FILES if k not in data_frames and k != "grid"]
 if missing and src == "upload" and PAGE == "data":
     hint = t("or_build_plan") if missing == ["teachers"] else ""
@@ -360,7 +353,7 @@ _n_versions = len(DB.versions(WS))
 _last = ss.get("last")
 ss["_marks"] = {"data": "✅" if data_ready else "⚠️", "plan": "✅" if plan is not None else "",
                 "run": "✅" if _last and _last.get("sched") is not None else "",
-                "tt": f"({_n_versions})" if _n_versions else "", "edit": "", "cmp": ""}
+                "tt": f"({_n_versions})" if _n_versions else "", "cmp": ""}
 render_nav(ss["_marks"])
 
 # ------------------------------------------------------------------ generation settings (run page)
@@ -456,10 +449,18 @@ if adv is not None and unlocked:
 
 _pre_ok = presolve.ready(st, plan, use_remedial)
 run = False
+_mm_left = 0
+if RUN and data_ready and plan is not None:
+    _mm_n = len(curr.mismatches(plan, data_frames))
+    if _mm_n:
+        with run_pre:
+            st.error(t("mm_block", n=_mm_n))
+            _mm_left = mismatch_panel("run")
 if RUN:
     if data_ready and not _pre_ok:
         run_set.warning(t("pre_rem_need"))
-    run = run_set.button(t("solve"), type="primary", width="stretch", disabled=not data_ready or not _pre_ok)
+    run = run_set.button(t("solve"), type="primary", width="stretch",
+                         disabled=not data_ready or not _pre_ok or bool(_mm_left))
 st.sidebar.caption(t("beta_footer"))
 
 
@@ -580,7 +581,8 @@ def solved_dialog(info):
     if b1.button(t("dlg_view"), type="primary", width="stretch"):
         st.rerun()
     if b2.button(t("dlg_edit"), width="stretch"):
-        goto("edit")
+        ss["tt_mode"] = "quick"
+        goto("tt")
     if b3.button(t("dlg_details"), width="stretch"):
         goto("run")
 
@@ -691,10 +693,17 @@ def adapt_panel(editor, ed_state, v, sel, sel_key, conf):
             if st.button(t("adapt_close")):
                 ed_state.pop("proposal", None); st.rerun()
             return
-        st.success(t("adapt_ok", p=len(pr["state"].get("pins", [])), m=len(pr["moved"]), l=pr["level"],
+        if pr.get("kind") == "improve":
+            st.success(t("imp_ok", m=len(pr["moved"]), s=pr.get("seconds", "?")))
+            ik = pd.DataFrame({t("before_col"): pr["before"], t("after_col"): pr["after"]})
+            ik["Δ"] = ik[t("after_col")] - ik[t("before_col")]
+            ik.index = [("🎯 " if k in pr["goals"] else "") + t("kpi_" + k) for k in ik.index]
+            st.dataframe(ik, width="stretch")
+        else:
+            st.success(t("adapt_ok", p=len(pr["state"].get("pins", [])), m=len(pr["moved"]), l=pr["level"],
                      s=pr.get("seconds", "?")) if not pr["regen"] else
                    t("regen_ok", p=len(pr["state"].get("pins", [])), m=len(pr["moved"]), s=pr.get("seconds", "?")))
-        if not pr["regen"] and len(pr["moved"]) > 10 * max(1, len(pr["state"].get("pins", []))):
+        if not pr["regen"] and pr.get("kind") != "improve" and len(pr["moved"]) > 10 * max(1, len(pr["state"].get("pins", []))):
             st.info(t("adapt_many"))
         old = {l["id"]: l for l in pr["base"]["lessons"]}
         new = {l["id"]: l for l in pr["state"]["lessons"]}
@@ -720,6 +729,76 @@ def adapt_panel(editor, ed_state, v, sel, sel_key, conf):
             st.toast(t("saved_new", n=name), icon="✅"); st.rerun()
         if a2.button(t("adapt_cancel"), width="stretch"):
             ed_state.pop("proposal", None); st.rerun()
+
+
+def version_cfg(state):
+    """The rules the version was solved with (saved in it); old versions fall back to the sidebar settings."""
+    if state and state.get("solver_cfg"):
+        c = cfg_from_dict(state["solver_cfg"]); c.num_workers = workers
+        return c
+    return make_cfg()
+
+
+def improve_panel(editor, ed_state, v):
+    """✨ Auto-improve a finished timetable: chosen KPI goals, optional relaxations, all other KPIs never worse."""
+    with st.expander(t("imp_title")):
+        st.caption(t("imp_help"))
+        lab = lambda k: t("kpi_" + k)
+        goals = st.multiselect(t("imp_goals"), IMPROVE_KPIS, default=["t_single", "t_gap1"], format_func=lab,
+                               key="imp_goals")
+        main = st.selectbox(t("imp_main"), goals, format_func=lab, key="imp_main") if goals else None
+        st.markdown(t("imp_relax"))
+        relax = {}
+        rc = st.columns(len(IMPROVE_LINKS))
+        for i, k in enumerate(IMPROVE_LINKS):
+            if k in goals:
+                continue
+            n = rc[i].number_input(lab(k), 0, 50, 0, key=f"imp_rx_{k}", help=t("imp_relax_help"))
+            if n:
+                relax[k] = int(n)
+        off = set()
+        for k in relax:
+            off |= set(IMPROVE_LINKS.get(k, []))
+        guards = [k for k in IMPROVE_KPIS if k not in goals and k not in relax and k not in off]
+        st.caption(t("imp_guards") + " " + " · ".join("🛡️ " + lab(k) for k in guards)
+                   + ("  \n" + t("imp_off") + " " + " · ".join("⛔ " + lab(k) for k in sorted(off - set(goals))) if off else ""))
+        c1, c2, c3 = st.columns([2, 2, 1])
+        mode = c1.radio(t("imp_mode"), ["few", "free"], format_func=lambda m: t("imp_mode_" + m), key="imp_mode",
+                        horizontal=True)
+        secs = c2.slider(t("adapt_time"), 30, 600, 120, step=30, key="imp_secs")
+        cap = c1.number_input(t("imp_cap"), 5, 300, 40, step=5, key="imp_cap") if mode == "few" else None
+        go = c3.button(t("imp_btn"), type="primary", disabled=not goals or not data_ready, width="stretch")
+        if not go:
+            return
+        import threading
+        box = {"res": None, "err": None}
+        state_now, cfg_ = editor.export_state(), version_cfg(editor.export_state())
+        def _work():
+            try:
+                box["res"] = improve(SchoolDataLoader(data_frames), cfg_, state_now, sorted(editor.pins), goals,
+                                     relax=relax, guards=guards, main=main,
+                                     change_weight=3000 if mode == "few" else 0, max_moves=cap, time_limit=secs,
+                                     fixed_assignment=plan["assignment"] if plan is not None else None)
+            except Exception as ex_:
+                box["err"] = ex_
+        t0 = time.time(); th = threading.Thread(target=_work, daemon=True); th.start()
+        bar, txt = st.progress(0.0), st.empty()
+        while th.is_alive():
+            el = time.time() - t0; rem = int(max(0, 2 * secs + 20 - el))
+            bar.progress(min(1.0, el / (2 * secs + 20)))
+            txt.info(t("imp_running", m=rem // 60, s=f"{rem % 60:02d}"))
+            th.join(timeout=1.0)
+        bar.empty(); txt.empty()
+        if isinstance(box["err"], RepairMismatch):
+            st.error(t("adapt_mismatch")); return
+        if box["err"] is not None:
+            st.error(f"❌ {type(box['err']).__name__}: {box['err']}"); return
+        r = box["res"]
+        if r["state"] is None:
+            st.warning(t("imp_none", s=r["status"])); return
+        ed_state["proposal"] = dict(r, base=state_now, regen=False, kind="improve", level="—", clash=[],
+                                    goals=goals)
+        st.rerun()
 
 
 # ------------------------------------------------------------------ step 2: run
@@ -906,10 +985,16 @@ def _chip(txt, bg="#f0f2f6", fg="#262730"):
             f'background:{bg};color:{fg};font-size:13px;white-space:nowrap">{txt}</span>')
 
 
+def prio_rate(r):
+    """Priority shown as a rate: current / max (max = the fairness strength k used by the solver)."""
+    mx = r.get("Priority_max", None) if hasattr(r, "get") else None
+    return f"{float(r['Priority']):g}/{float(mx):g}" if mx is not None and mx == mx else f"{float(r['Priority']):g}"
+
+
 def teacher_chips(r):
     """Main KPIs of one teacher as coloured chips (green = good, orange = to watch)."""
     ok, warn = ("#e3f5e1", "#1e6b2a"), ("#fff1d6", "#8a5a00")
-    c = [_chip(t("k_prio", v=r["Priority"]), "#e8e0ff", "#4b2c9a"),
+    c = [_chip(t("k_prio", v=prio_rate(r)), "#e8e0ff", "#4b2c9a"),
          _chip(t("k_hours", v=r["Hours"]) + (f" ({t('k_rem', v=r['Remedial'])})" if r["Remedial"] else ""), "#dbe8ff", "#1f4e99"),
          _chip(t("k_days", v=r["Days"])),
          _chip(t("k_gaps", v=r["Gaps"]), *(ok if r["Gaps"] == 0 else warn)),
@@ -934,18 +1019,51 @@ def class_chips(r):
     return f'<div style="margin:-6px 0 6px 0">{"".join(c)}</div>'
 
 
+EXPORT_DIR = os.path.join(HERE, "static", "exports")
+
+
+def publish_file(data, ext="pdf"):
+    """Put a generated file under ./static (served by Streamlit at app/static/...) so it opens in a NEW TAB
+    instead of printing/downloading. Content-addressed name; only the 40 newest files are kept."""
+    import hashlib
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+    fn = f"{hashlib.sha1(data).hexdigest()[:20]}.{ext}"
+    p_ = os.path.join(EXPORT_DIR, fn)
+    if not os.path.exists(p_):
+        with open(p_, "wb") as f_:
+            f_.write(data)
+        old = sorted((os.path.join(EXPORT_DIR, x) for x in os.listdir(EXPORT_DIR)), key=os.path.getmtime)[:-40]
+        for x in old:
+            try:
+                os.remove(x)
+            except OSError:
+                pass
+    return f"./app/static/exports/{fn}"
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def entity_pdf(csv_bytes, title, kind, who, lang_, rec_json):
+    i18n.set_lang(lang_)
+    df_ = pd.read_csv(io.BytesIO(csv_bytes), dtype=str).fillna("")
+    df_["Day"], df_["Slot"] = df_["Day"].astype(int), df_["Slot"].astype(int)
+    return export.to_pdf(df_, title, sections=(kind,), only=(kind, who), reception=json.loads(rec_json) or None)
+
+
 @st.cache_data(show_spinner=False, max_entries=16)
 def export_file(kind, key):
-    ws_, v_, _, lang_, secs_ = key
+    ws_, v_, _, lang_, secs_, only_ = key
     i18n.set_lang(lang_)
     df_ = DB.load(ws_, v_)
-    rv = None
-    if "rooms" in secs_:
+    rv = occ_ = None
+    if "rooms" in secs_ or "full_teacher" in secs_:
         caps_ = rooms_caps(v_)
-        rv = export.room_view(rms.allocate(df_, data_frames.get("subjects"), caps_), caps_)
+        occ_ = rms.allocate(df_, data_frames.get("subjects"), caps_)
+        if "rooms" in secs_:
+            rv = export.room_view(occ_, caps_)
     _sv = load_state(v_) or None
     recv = (_sv.get("reception") if "reception" in _sv else ScheduleEditor(_sv).rec) if _sv else None
-    return (export.to_xlsx if kind == "xlsx" else export.to_pdf)(df_, v_, sections=secs_, rooms=rv, reception=recv)
+    return (export.to_xlsx if kind == "xlsx" else export.to_pdf)(df_, f"{ws_} — {v_}", sections=secs_, rooms=rv,
+                                                                 reception=recv, occ=occ_, only=only_)
 
 
 def rooms_caps(v_):
@@ -958,6 +1076,230 @@ def rooms_caps(v_):
 
 
 REC_BG = "repeating-linear-gradient(45deg,#8d6e63,#8d6e63 6px,#795548 6px,#795548 12px)"
+
+
+# ------------------------------------------------------------------ edit helpers: preview popup, apply, affected strip
+def _pos(ed_):
+    return {i: (l["day"], l["start"]) for i, l in ed_.L.items()}
+
+
+def _where(d_, s_):
+    return f"{i18n.day(d_)} {i18n.slot_label(s_)}"
+
+
+def entity_table_html(ed_, kind, key, pv, lid):
+    """Static timetable of ONE class/teacher in its CURRENT state; lessons the pending change would touch are outlined."""
+    import html as _h
+    esc = lambda x: _h.escape(str(x))
+    mine = [l for l in ed_.L.values() if ((l["class"] == key or key in l.get("blocks_classes", []))
+                                          if kind == "class" else key in l["teachers"])]
+    cell, incoming = {}, {}
+    for l in mine:
+        for k in range(l["duration"]):
+            cell.setdefault((l["day"], l["start"] + k), []).append(l)
+        if l["id"] in pv["moves"]:
+            dd, s0 = pv["moves"][l["id"]]
+            for k in range(l["duration"]):
+                incoming.setdefault((dd, s0 + k), []).append(l)
+    for i, (dd, s0) in pv["moves"].items():                 # the dragged lesson arriving in THIS table (other entity)
+        l = ed_.L[i]
+        if l in mine:
+            continue
+        if (kind == "class" and (l["class"] == key or key in l.get("blocks_classes", []))) or \
+           (kind == "teacher" and key in l["teachers"]):
+            for k in range(l["duration"]):
+                incoming.setdefault((dd, s0 + k), []).append(l)
+    D, S, lb = ed_.cfg["days"], ed_.cfg["slots"], ed_.cfg["lunch_boundary"]
+    rtl = i18n.is_ar()
+    th = "".join(f"<th>{esc(i18n.day(d_))}</th>" for d_ in range(D))
+    rows = []
+    for s_ in range(S):
+        tds = []
+        for d_ in range(D):
+            ls = cell.get((d_, s_), [])
+            parts, style = [], ""
+            for l in ls:
+                title = (i18n.subj_short(l["subject"]) if kind == "class" else
+                         (i18n.subj_short("REMEDIAL") if l.get("remedial") else i18n.cls(l["class"])))
+                sub = i18n.teachers(l["teachers"]) if kind == "class" else i18n.subj_short(l["subject"])
+                tag = ""
+                if l["id"] in pv["clash"]:
+                    tag = f"<div class='pv-tag pv-r'>⚠ {esc(t('pv_clash'))}</div>"
+                    style = "outline:3px solid #d64545;outline-offset:-3px;"
+                elif l["id"] in pv["moves"]:
+                    dd, s0 = pv["moves"][l["id"]]
+                    tag = f"<div class='pv-tag pv-y'>↦ {esc(t('pv_moves_to', w=_where(dd, s0 + (s_ - l['start']))))}</div>"
+                    style = "outline:3px dashed #c58b00;outline-offset:-3px;"
+                parts.append(f"<b>{esc(title)}</b><br><small>{esc(sub)}</small>{tag}")
+            bg = colors.light(ls[0]["subject"]) if ls else ("#eef1f5" if (d_ == 2 and s_ > lb) else "#fff")
+            inc = [l for l in incoming.get((d_, s_), []) if l not in ls or pv["moves"].get(l["id"]) != (l["day"], l["start"])]
+            if inc:
+                l = inc[0]
+                nm = i18n.subj_short(l["subject"]) if kind == "class" else i18n.cls(l["class"])
+                parts.append(f"<div class='pv-tag pv-g'>⬅ {esc(nm)} · {esc(t('pv_incoming'))}</div>")
+                if not style:
+                    style = "outline:3px solid #1e9e57;outline-offset:-3px;"
+            tds.append(f"<td style='background:{bg};{style}'>{''.join(parts)}</td>")
+        sep = " class='pv-lunch'" if s_ == lb + 1 else ""
+        rows.append(f"<tr{sep}><th>{esc(i18n.slot_label(s_))}</th>{''.join(tds)}</tr>")
+    head = ("🎒 " + i18n.cls(key)) if kind == "class" else ("👨‍🏫 " + key)
+    return (f"<div class='pv-box' dir='{'rtl' if rtl else 'ltr'}'><div class='pv-h'>{esc(head)}</div>"
+            f"<table class='pv'><tr><th></th>{th}</tr>{''.join(rows)}</table></div>")
+
+
+PV_CSS = """<style>
+.pv-box{margin:6px 0 14px}.pv-h{font-weight:700;margin-bottom:4px}
+table.pv{border-collapse:separate;border-spacing:3px;width:100%;table-layout:fixed;font-size:12px}
+table.pv th{background:#f0f4f9;border-radius:6px;padding:3px;font-weight:600;font-size:11.5px}
+table.pv td{border:1px solid #e1e8f0;border-radius:7px;padding:3px 5px;vertical-align:top;height:44px;line-height:1.25}
+table.pv tr.pv-lunch td, table.pv tr.pv-lunch th{border-top:3px dashed #c9d6e3}
+.pv-tag{font-size:10.5px;font-weight:700;margin-top:2px}.pv-y{color:#9a6a00}.pv-g{color:#137a42}.pv-r{color:#c03030}
+.pv-leg span{display:inline-block;margin-inline-end:14px;font-size:12px}
+</style>"""
+
+
+def single_payload(editor, view, who, free=False, readonly=False, tw=None):
+    """Payload of the one-class / one-teacher drag & drop board (also used read-only in View mode)."""
+    mine = [l for l in editor.L.values() if ((l["class"] == who or who in l.get("blocks_classes", []))
+                                             if view == "class" else who in l["teachers"])]
+    lessons_payload = []
+    for l in mine:
+        sname = i18n.subj(l["subject"])
+        lessons_payload.append({
+            "id": l["id"], "day": l["day"], "start": l["start"], "duration": l["duration"],
+            "locked": False if free else editor.locked(l),
+            "title": sname if view == "class" else f"{i18n.cls(l['class'])} · {sname}",
+            "sub": i18n.teachers(l["teachers"]) if view == "class"
+                   else i18n.teachers([x for x in l["teachers"] if x != who]) or "&nbsp;",
+            "colorKey": l["subject"].split("_")[0],
+            "bg": colors.css_background(l["subject"]),
+            "tooltip": t("tooltip", s=sname, c=i18n.cls(l["class"]), t=i18n.teachers(l["teachers"]),
+                         d=l["duration"], r=l["rooms"]),
+        })
+    _st_map = {} if readonly else editor.status_map([l["id"] for l in mine], free=free)
+    if view == "teacher" and who in editor.rec:
+        _rd, _rs = editor.rec[who]
+        lessons_payload.append({"id": f"REC::{who}", "day": int(_rd), "start": int(_rs), "duration": 1,
+                                "locked": False, "title": t("rec_title"), "sub": "&nbsp;", "colorKey": "REC",
+                                "bg": REC_BG, "tooltip": t("rec_tip", t=who)})
+        if not readonly:
+            _st_map[f"REC::{who}"] = editor.rec_status(who)
+    _tw = tw or {}
+    win_cells = [f"{d_},{s_}" for d_, s_ in _tw.get(who, [])] if view == "teacher" else []
+    payload = {
+        "windows": win_cells,
+        "title": i18n.cls(who) if view == "class" else who, "lessons": lessons_payload,
+        "status": _st_map, "free": free,
+        "rtl": i18n.is_ar(), "days": i18n.DAYS[i18n.LANG], "slots": [i18n.slot_label(i) for i in range(7)],
+        "i18n": {"free": t("dnd_free"), "swap": t("dnd_swap"), "impossible": t("dnd_impossible"),
+                 "current": t("dnd_current"), "hint": t("dnd_hint"), "moving": t("dnd_moving"),
+                 "not_allowed": t("dnd_not_allowed"), "applying": t("dnd_applying"), "lunch": t("dnd_lunch"),
+                 "st_green": t("st_green"), "st_yellow": t("st_yellow"), "st_red": t("st_red"),
+                 "st_current": t("st_current"), "tgt_head": t("dnd_tgt_head"), "tgt_none": t("dnd_tgt_none"),
+                 "win": t("dnd_win"), "win_msg": t("dnd_win_msg"), "forced": t("dnd_forced"),
+                 "st_orange": t("dnd_forced_s")},
+    }
+
+    if readonly:
+        payload["readonly"] = True
+    return payload
+
+def do_move(ed_, ed_state, lid, d_, s_, free):
+    """Apply a move (checked or forced), record undo/log and remember which other classes/teachers were touched."""
+    pv = ed_.preview(lid, d_, s_, free)
+    before_pos, before = _pos(ed_), ed_.export_state()
+    ok, msg = (ed_.move_free if free else ed_.apply)(lid, d_, s_)
+    if ok:
+        ed_state["undo"].append(before)
+        ed_state["cur"] = ed_.export_state()
+        l = ed_.L[lid]
+        ed_state["log"].append(t("log_move", s=i18n.subj(l["subject"]), c=i18n.cls(l["class"]),
+                                 d=i18n.day(d_), sl=s_, m=msg))
+        after = _pos(ed_)
+        moved = {i: (before_pos[i], after[i]) for i in after if after[i] != before_pos[i]}
+        ed_state["affected"] = {"entities": pv["entities"], "moved": moved, "lid": lid}
+    return ok, msg
+
+
+def queue_or_move(ed_, ed_state, lid, d_, s_, free, sel_key=None):
+    """Swaps (yellow) and forced moves (orange) touch other classes/teachers: ask first (popup), else apply now."""
+    pv = ed_.preview(lid, d_, s_, free)
+    if pv["status"] in ("yellow", "orange"):
+        ed_state["pending"] = {"lid": lid, "d": d_, "s": s_, "free": free, "sel_key": sel_key}
+        st.rerun()
+    ok, msg = do_move(ed_, ed_state, lid, d_, s_, free)
+    if ok:
+        if sel_key:
+            st.session_state[sel_key] = None
+        st.rerun()
+    st.error(t("move_rejected", m=msg))
+
+
+def confirm_popup(ed_, ed_state):
+    p = ed_state.get("pending")
+    if not p or p["lid"] not in ed_.L:
+        ed_state.pop("pending", None)
+        return
+
+    def _dismiss():
+        st.session_state["ed"].pop("pending", None)
+
+    @st.dialog(t("pv_title"), width="large", on_dismiss=_dismiss)
+    def _dlg():
+        pv = ed_.preview(p["lid"], p["d"], p["s"], p["free"])
+        l = ed_.L[p["lid"]]
+        st.markdown(PV_CSS, unsafe_allow_html=True)
+        st.markdown(f"**{i18n.subj(l['subject'])} · {i18n.cls(l['class'])} · {i18n.teachers(l['teachers'])}** → "
+                    f"**{_where(p['d'], p['s'])}**")
+        (st.warning if pv["status"] == "orange" else st.info)(pv["msg"])
+        if not pv["entities"]:
+            st.caption(t("pv_none"))
+        _kind = st.radio(t("pv_show"), ["teacher", "class"], horizontal=True, key="pv_kind",
+                         format_func=lambda x: t("pv_show_" + x))
+        st.caption(t("pv_state"))
+        st.markdown(f"<div class='pv-leg'><span>🟨 {t('pv_leg_move')}</span><span>🟩 {t('pv_leg_in')}</span>"
+                    + (f"<span>🟥 {t('pv_leg_clash')}</span>" if pv["clash"] else "") + "</div>", unsafe_allow_html=True)
+        for key_ in (pv["teachers"] if _kind == "teacher" else pv["classes"]):
+            st.markdown(entity_table_html(ed_, _kind, key_, pv, p["lid"]), unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        if c1.button(t("pv_confirm"), type="primary", width="stretch", disabled=pv["status"] == "red"):
+            ok, msg = do_move(ed_, ed_state, p["lid"], p["d"], p["s"], p["free"])
+            ed_state.pop("pending", None)
+            if ok and p.get("sel_key"):
+                st.session_state[p["sel_key"]] = None
+            if not ok:
+                ss["_move_err"] = msg
+            st.rerun()
+        if c2.button(t("pv_cancel"), width="stretch"):
+            ed_state.pop("pending", None)
+            st.rerun()
+
+    _dlg()
+
+
+def affected_strip(ed_state):
+    a = ed_state.get("affected")
+    if not a or not a.get("entities"):
+        return
+    ed_ = ScheduleEditor(ed_state["cur"])
+    info = []
+    for i, ((d0, s0), (d1, s1)) in a["moved"].items():
+        if i == a["lid"] or i not in ed_.L:
+            continue
+        l = ed_.L[i]
+        info.append(f"{i18n.subj_short(l['subject'])} {i18n.cls(l['class'])}: {_where(d0, s0)} → {_where(d1, s1)}")
+    with st.container(border=True):
+        st.markdown(f"**{t('aff_title')}** " + (" · ".join(info) if info else ""))
+        ents = a["entities"][:6]
+        cols = st.columns(len(ents) + 1)
+        for j, (k_, key_) in enumerate(ents):
+            lab = ("🎒 " + i18n.cls(key_)) if k_ == "class" else ("👨‍🏫 " + key_)
+            if cols[j].button(lab, key=f"aff_{j}_{key_}", width="stretch", help=t("aff_open")):
+                ss["_ed_goto"] = (k_, key_)
+                st.rerun()
+        if cols[-1].button(t("aff_clear"), key="aff_hide", width="stretch"):
+            ed_state.pop("affected", None)
+            st.rerun()
 
 
 def full_payload(lessons, rows_by, sel=None, status=None, locked_fn=None, readonly=False, pins=(), clash=None,
@@ -1016,6 +1358,7 @@ def subject_legend(subjects):
     st.markdown(f"<div>{chips}</div>", unsafe_allow_html=True)
 
 
+TT_MODE = "view"
 if PAGE == "tt":
     if "_solved" in ss:
         solved_dialog(ss.pop("_solved"))
@@ -1023,113 +1366,163 @@ if PAGE == "tt":
     if not vs:
         st.info(t("no_versions"))
     else:
-        v = st.selectbox(t("version"), vs, index=default_index(vs), format_func=version_label,
-                         key=f"tt_version_{st.session_state.get('current_version')}")
-        df = manager.load(v)
-        if "Classes" not in df.columns:
-            df["Classes"] = ""
-        df["Classes"] = df["Classes"].fillna("").astype(str)
-        is_rem = df["Class"].astype(str).str.startswith("REM:")
-        with st.expander(t("export_title")):
-            secs = st.multiselect(t("export_sections"), ["full_class", "full_teacher", "class", "teacher", "rooms"],
-                                  default=["full_class", "full_teacher", "class", "teacher", "rooms"],
-                                  format_func=lambda x: t("exp_" + x), key=f"exp_secs_{v}")
-            _k = (WS, v, DB.stamp(WS, v), i18n.LANG, tuple(secs))
-            c_x, c_p = st.columns(2)
-            if secs:
-                c_x.download_button(t("export_xlsx"), export_file("xlsx", _k), f"{v}.xlsx",
-                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
-                c_p.download_button(t("export_pdf"), export_file("pdf", _k), f"{v}.pdf", "application/pdf", width="stretch")
-        subject_legend(sorted({colors.base(x) for x in df["Subject"]}, key=lambda z: (z == "REMEDIAL", z)))
-        view = st.radio(t("view_by"), ["class", "teacher", "full_class", "full_teacher", "rooms"], horizontal=True,
-                        format_func=lambda x: t("lay_" + x) if x.startswith("full") else (t("rm_view") if x == "rooms" else t(x)))
-        if view == "rooms":
-            _caps = rooms_caps(v)
-            occ = rms.allocate(df, data_frames.get("subjects"), _caps)
-            sm_ = rms.summary(occ, _caps)
-            st.subheader(t("rm_title"))
-            for x_ in sm_["types"]:
-                st.caption(t("rm_kpi_used", rt=rms.rt_label(x_["rt"]), u=x_["used"], a=x_["avail"],
-                             p=round(100 * x_["used"] / x_["avail"]) if x_["avail"] else 0, m=x_["peak"], c=x_["cap"]))
-            (st.warning if sm_["none"] else st.success)(t("rm_none", n=sm_["none"]) if sm_["none"] else t("rm_all_ok"))
-            st.caption(" · ".join([t("rm_borrowed_n", n=sm_["borrowed"])] +
-                                  ([t("rm_fallback_n", n=sm_["fallback"])] if sm_["fallback"] else [])) +
-                       "  (↪ = " + t("rm_note_borrow", c="…") + ", 🔁 = " + t("rm_note_fb") + ")")
-            st.markdown(rms.grid_html(occ, _caps, color_light=colors.light, color_strong=colors.strong), unsafe_allow_html=True)
-            st.subheader(t("rm_free_title"))
-            ft_ = rms.free_table(occ, _caps)
-            st.dataframe(ft_.style.background_gradient(cmap="RdYlGn", vmin=0, vmax=max(4, int(_caps.get("classroom", 1)) // 3))
-                         .format(lambda z: "—" if z != z else f"{int(z)}"), width="stretch")
-            _o = occ.assign(Day=occ["Day"].map(i18n.day), Slot=occ["Slot"] + 1,
-                            RoomType=occ["RoomType"].map(rms.rt_label), Subject=occ["Subject"].map(i18n.subj),
-                            Note=[rms.note_text(r_) for r_ in occ.itertuples()]).drop(columns=["NoteArg"])
-            _o["Class"] = [", ".join(i18n.cls(c_.strip()) for c_ in str(x_).split(",")) for x_ in _o["Class"]]
-            _o = _o.rename(columns={c_: dl._lbl(dl.COLS[c_], i18n.LANG) for c_ in _o.columns if c_ in dl.COLS})
-            st.download_button("⬇️ CSV", _o.to_csv(index=False).encode("utf-8-sig"), f"{v}_rooms.csv", "text/csv")
-        elif view.startswith("full"):
-            pseudo = []
-            for i_, r in enumerate(df.itertuples()):
-                rem_ = str(r.Class).startswith("REM:")
-                pseudo.append({"id": f"p{i_}", "class": r.Class, "teachers": str(r.Teachers).split(", "), "subject": r.Subject,
-                               "day": int(r.Day), "start": int(r.Slot), "duration": 1, "remedial": rem_,
-                               "blocks_classes": [z.strip() for z in str(r.Classes).split(",") if z.strip()] if rem_ else []})
-            _rec_v = None
-            if view == "full_teacher":
-                _sv = load_state(v)
-                if _sv:
-                    _rec_v = (_sv.get("reception") if "reception" in _sv else ScheduleEditor(_sv).rec)
-            dnd_full(data=full_payload(pseudo, "class" if view == "full_class" else "teacher", readonly=True, rec=_rec_v),
-                     key=f"ttfull_{v}_{view}", default=None)
-        elif view == "class":
-            own = df[~is_rem].copy()
-            own["Label"] = [f"{i18n.subj(s_)} ({tc})" for s_, tc in zip(own["Subject"], own["Teachers"])]
-            rem = df[is_rem]
-            if "RemSubject" not in rem.columns:
-                rem = rem.assign(RemSubject="")
-            cellmap = {}
-            for r in rem.itertuples():            # remediation shown in every class of the teacher
-                for c in [z.strip() for z in r.Classes.split(",") if z.strip()]:
-                    cellmap.setdefault((c, r.Day, r.Slot), []).append((str(r.RemSubject or ""), r.Teachers))
-            rem_rows = []
-            for (c, d_, s_), items in cellmap.items():  # grouped sessions (same hour) -> ONE cell
-                subs = " / ".join(dict.fromkeys(i18n.subj(x) for x, _ in items if x and x != "nan"))
-                tchs = " / ".join(tc for _, tc in items)
-                rem_rows.append({"Class": c, "Day": d_, "Slot": s_, "Subject": "REMEDIAL", "Teachers": tchs,
-                                 "Label": f"{i18n.subj('REMEDIAL')}{': ' + subs if subs else ''} ({tchs})"})
-            full = pd.concat([own, pd.DataFrame(rem_rows)], ignore_index=True) if rem_rows else own
-            classes_ = sorted(own["Class"].unique(), key=_class_key)
-            summ = pd.DataFrame({t("tot_class"): [i18n.cls(c) for c in classes_],
-                                 t("tot_hours"): [int((own["Class"] == c).sum()) for c in classes_],
-                                 t("tot_rem"): [sum(1 for x in rem_rows if x["Class"] == c) for c in classes_]})
-            with st.expander(t("tot_title_c", n=len(classes_), h=int(len(own))), expanded=False):
-                st.dataframe(summ, hide_index=True, width="stretch")
-            cst = class_stats(df)
-            for c in classes_:
-                h = int((own["Class"] == c).sum()); r_ = sum(1 for x in rem_rows if x["Class"] == c)
-                st.markdown(f"#### 🎒 {i18n.cls(c)} — {t('tot_h', h=h)}" + (f" + {t('tot_rem_h', h=r_)}" if r_ else ""))
-                if c in cst.index:
-                    st.markdown(class_chips(cst.loc[c]), unsafe_allow_html=True)
-                st.dataframe(styled_grid(full, "Class", c, "Label"), width="stretch")
-        else:
-            dt = df.assign(Teacher=df["Teachers"].str.split(", ")).explode("Teacher")
-            dt["Label"] = [f"{i18n.subj(s_)} ({cl})" if str(c).startswith("REM:") else f"{i18n.cls(c)} ({i18n.subj(s_)})"
-                           for c, s_, cl in zip(dt["Class"], dt["Subject"], dt["Classes"])]
-            teachers_ = sorted(dt["Teacher"].unique(), key=nat)
-            tot = dt.groupby("Teacher").size()
-            remc = dt[dt["Subject"] == "REMEDIAL"].groupby("Teacher").size()
-            win_info, k_ = load_state_info(v)
-            tst = teacher_stats(df, win_info, k_)
-            summ = tst.reset_index()[["Teacher", "Priority", "Hours", "Remedial", "Days", "Gaps", "Single_hour",
-                                      "Afternoon_h", "Slot7", "Avg_finish", "In_window", "Classes"]]
-            summ = summ.sort_values(["Priority", "Teacher"], ascending=[False, True])
-            summ.columns = [t("ks_" + c_) for c_ in summ.columns]
-            with st.expander(t("tot_title_t", n=len(teachers_), h=int(len(dt))), expanded=False):
-                st.dataframe(summ, hide_index=True, width="stretch")
-            for tch in teachers_:
-                st.markdown(f"#### 👨‍🏫 {tch} — {t('tot_h', h=int(tot.get(tch, 0)))}")
-                if tch in tst.index:
-                    st.markdown(teacher_chips(tst.loc[tch]), unsafe_allow_html=True)
-                st.dataframe(styled_grid(dt, "Teacher", tch, "Label"), width="stretch")
+        _hd = st.columns([3, 2])
+        v = _hd[0].selectbox(t("version"), vs, index=default_index(vs), format_func=version_label,
+                             key=f"tt_version_{st.session_state.get('current_version')}")
+        _can_edit = v in DB.has_state(WS)
+        _modes = ["view", "quick", "free"] if _can_edit else ["view"]
+        if ss.get("tt_mode") not in _modes:
+            ss["tt_mode"] = "view"
+        TT_MODE = _hd[1].radio(t("tt_mode"), _modes, horizontal=True, key="tt_mode",
+                               format_func=lambda x: t("mode_" + x), help=t("mode_help"))
+        if not _can_edit:
+            _hd[1].caption(t("no_state_edit"))
+        _eds = ss.get("ed")
+        _unsaved = bool(_eds and _eds.get("version") == v and _eds.get("undo"))
+        if TT_MODE == "view":
+            if _unsaved:
+                df = ScheduleEditor(_eds["cur"]).to_schedule_df()
+                st.warning(t("unsaved_badge", n=len(_eds["undo"])))
+            else:
+                df = manager.load(v)
+            _vstate = _eds["cur"] if _unsaved else load_state(v)
+            if "Classes" not in df.columns:
+                df["Classes"] = ""
+            df["Classes"] = df["Classes"].fillna("").astype(str)
+            is_rem = df["Class"].astype(str).str.startswith("REM:")
+            with st.expander(t("export_title")):
+                secs = st.multiselect(t("export_sections"), ["full_class", "full_teacher", "class", "teacher", "rooms"],
+                                      default=["full_class", "full_teacher", "class", "teacher", "rooms"],
+                                      format_func=lambda x: t("exp_" + x), key=f"exp_secs_{v}")
+                _ents = sorted({c_ for c_ in df.loc[~is_rem, "Class"]}, key=_class_key)
+                _tchs = sorted({x_ for z_ in df["Teachers"] for x_ in str(z_).split(", ") if x_}, key=nat)
+                _only = st.selectbox(t("exp_only"), [None] + [("class", c_) for c_ in _ents] + [("teacher", x_) for x_ in _tchs],
+                                     format_func=lambda o: t("exp_all") if o is None else
+                                     (("🎒 " + i18n.cls(o[1])) if o[0] == "class" else "👨‍🏫 " + o[1]), key=f"exp_only_{v}")
+                if _only:
+                    secs = [_only[0]]
+                _k = (WS, v, DB.stamp(WS, v), i18n.LANG, tuple(secs), _only)
+                c_x, c_p, c_o = st.columns(3)
+                _fn = f"{WS}_{v}" + (f"_{_only[1]}" if _only else "")
+                if _unsaved:
+                    st.caption(t("export_unsaved"))
+                elif secs:
+                    c_x.download_button(t("export_xlsx"), export_file("xlsx", _k), f"{_fn}.xlsx",
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+                    _pdf = export_file("pdf", _k)
+                    c_p.download_button(t("export_pdf"), _pdf, f"{_fn}.pdf", "application/pdf", width="stretch")
+                    c_o.link_button(t("open_pdf_tab"), publish_file(_pdf), width="stretch")
+            subject_legend(sorted({colors.base(x) for x in df["Subject"]}, key=lambda z: (z == "REMEDIAL", z)))
+            view = st.radio(t("view_by"), ["class", "teacher", "full_class", "full_teacher", "rooms"], horizontal=True,
+                            format_func=lambda x: t("lay_" + x) if x.startswith("full") else (t("rm_view") if x == "rooms" else t(x)))
+            if view == "rooms":
+                _caps = rooms_caps(v)
+                occ = rms.allocate(df, data_frames.get("subjects"), _caps)
+                sm_ = rms.summary(occ, _caps)
+                st.subheader(t("rm_title"))
+                for x_ in sm_["types"]:
+                    st.caption(t("rm_kpi_used", rt=rms.rt_label(x_["rt"]), u=x_["used"], a=x_["avail"],
+                                 p=round(100 * x_["used"] / x_["avail"]) if x_["avail"] else 0, m=x_["peak"], c=x_["cap"]))
+                (st.warning if sm_["none"] else st.success)(t("rm_none", n=sm_["none"]) if sm_["none"] else t("rm_all_ok"))
+                st.caption(" · ".join([t("rm_borrowed_n", n=sm_["borrowed"])] +
+                                      ([t("rm_fallback_n", n=sm_["fallback"])] if sm_["fallback"] else [])) +
+                           "  (↪ = " + t("rm_note_borrow", c="…") + ", 🔁 = " + t("rm_note_fb") + ")")
+                st.markdown(rms.grid_html(occ, _caps, color_light=colors.light, color_strong=colors.strong), unsafe_allow_html=True)
+                st.subheader(t("rm_free_title"))
+                ft_ = rms.free_table(occ, _caps)
+                st.dataframe(ft_.style.background_gradient(cmap="RdYlGn", vmin=0, vmax=max(4, int(_caps.get("classroom", 1)) // 3))
+                             .format(lambda z: "—" if z != z else f"{int(z)}"), width="stretch")
+                _o = occ.assign(Day=occ["Day"].map(i18n.day), Slot=occ["Slot"] + 1,
+                                RoomType=occ["RoomType"].map(rms.rt_label), Subject=occ["Subject"].map(i18n.subj),
+                                Note=[rms.note_text(r_) for r_ in occ.itertuples()]).drop(columns=["NoteArg"])
+                _o["Class"] = [", ".join(i18n.cls(c_.strip()) for c_ in str(x_).split(",")) for x_ in _o["Class"]]
+                _o = _o.rename(columns={c_: dl._lbl(dl.COLS[c_], i18n.LANG) for c_ in _o.columns if c_ in dl.COLS})
+                st.download_button("⬇️ CSV", _o.to_csv(index=False).encode("utf-8-sig"), f"{v}_rooms.csv", "text/csv")
+            elif view.startswith("full"):
+                pseudo = []
+                for i_, r in enumerate(df.itertuples()):
+                    rem_ = str(r.Class).startswith("REM:")
+                    pseudo.append({"id": f"p{i_}", "class": r.Class, "teachers": str(r.Teachers).split(", "), "subject": r.Subject,
+                                   "day": int(r.Day), "start": int(r.Slot), "duration": 1, "remedial": rem_,
+                                   "blocks_classes": [z.strip() for z in str(r.Classes).split(",") if z.strip()] if rem_ else []})
+                _rec_v = None
+                if view == "full_teacher":
+                    _sv = load_state(v)
+                    if _sv:
+                        _rec_v = (_sv.get("reception") if "reception" in _sv else ScheduleEditor(_sv).rec)
+                dnd_full(data=full_payload(pseudo, "class" if view == "full_class" else "teacher", readonly=True, rec=_rec_v),
+                         key=f"ttfull_{v}_{view}", default=None)
+            elif view in ("class", "teacher") and _vstate:
+                # same board as the editor, read-only (the plain grid layout is kept for the printouts)
+                _ved = ScheduleEditor(_vstate)
+                if view == "class":
+                    _opts = sorted({l["class"] for l in _ved.L.values() if not str(l["class"]).startswith("REM:")}, key=_class_key)
+                else:
+                    _opts = sorted({x for l in _ved.L.values() for x in l["teachers"]}, key=nat)
+                _who = st.selectbox(t(view), _opts, key=f"view_who_{view}",
+                                    format_func=(lambda c_: f"{i18n.cls(c_)}") if view == "class" else str)
+                if view == "class":
+                    _cs = class_stats(df)
+                    if _who in _cs.index:
+                        st.markdown(class_chips(_cs.loc[_who]), unsafe_allow_html=True)
+                else:
+                    _wi, _kk = load_state_info(v)
+                    _ts = teacher_stats(df, _wi, _kk)
+                    if _who in _ts.index:
+                        st.markdown(teacher_chips(_ts.loc[_who]), unsafe_allow_html=True)
+                dnd_timetable(data=single_payload(_ved, view, _who, readonly=True, tw=_vstate.get("teacher_windows", {})),
+                              key=f"vdnd_{v}_{view}", default=None)
+            elif view == "class":
+                own = df[~is_rem].copy()
+                own["Label"] = [f"{i18n.subj(s_)} ({tc})" for s_, tc in zip(own["Subject"], own["Teachers"])]
+                rem = df[is_rem]
+                if "RemSubject" not in rem.columns:
+                    rem = rem.assign(RemSubject="")
+                cellmap = {}
+                for r in rem.itertuples():            # remediation shown in every class of the teacher
+                    for c in [z.strip() for z in r.Classes.split(",") if z.strip()]:
+                        cellmap.setdefault((c, r.Day, r.Slot), []).append((str(r.RemSubject or ""), r.Teachers))
+                rem_rows = []
+                for (c, d_, s_), items in cellmap.items():  # grouped sessions (same hour) -> ONE cell
+                    subs = " / ".join(dict.fromkeys(i18n.subj(x) for x, _ in items if x and x != "nan"))
+                    tchs = " / ".join(tc for _, tc in items)
+                    rem_rows.append({"Class": c, "Day": d_, "Slot": s_, "Subject": "REMEDIAL", "Teachers": tchs,
+                                     "Label": f"{i18n.subj('REMEDIAL')}{': ' + subs if subs else ''} ({tchs})"})
+                full = pd.concat([own, pd.DataFrame(rem_rows)], ignore_index=True) if rem_rows else own
+                classes_ = sorted(own["Class"].unique(), key=_class_key)
+                summ = pd.DataFrame({t("tot_class"): [i18n.cls(c) for c in classes_],
+                                     t("tot_hours"): [int((own["Class"] == c).sum()) for c in classes_],
+                                     t("tot_rem"): [sum(1 for x in rem_rows if x["Class"] == c) for c in classes_]})
+                with st.expander(t("tot_title_c", n=len(classes_), h=int(len(own))), expanded=False):
+                    st.dataframe(summ, hide_index=True, width="stretch")
+                cst = class_stats(df)
+                for c in classes_:
+                    h = int((own["Class"] == c).sum()); r_ = sum(1 for x in rem_rows if x["Class"] == c)
+                    st.markdown(f"#### 🎒 {i18n.cls(c)} — {t('tot_h', h=h)}" + (f" + {t('tot_rem_h', h=r_)}" if r_ else ""))
+                    if c in cst.index:
+                        st.markdown(class_chips(cst.loc[c]), unsafe_allow_html=True)
+                    st.dataframe(styled_grid(full, "Class", c, "Label"), width="stretch")
+            else:
+                dt = df.assign(Teacher=df["Teachers"].str.split(", ")).explode("Teacher")
+                dt["Label"] = [f"{i18n.subj(s_)} ({cl})" if str(c).startswith("REM:") else f"{i18n.cls(c)} ({i18n.subj(s_)})"
+                               for c, s_, cl in zip(dt["Class"], dt["Subject"], dt["Classes"])]
+                teachers_ = sorted(dt["Teacher"].unique(), key=nat)
+                tot = dt.groupby("Teacher").size()
+                remc = dt[dt["Subject"] == "REMEDIAL"].groupby("Teacher").size()
+                win_info, k_ = load_state_info(v)
+                tst = teacher_stats(df, win_info, k_)
+                summ = tst.reset_index()[["Teacher", "Priority", "Hours", "Remedial", "Days", "Gaps", "Single_hour",
+                                          "Afternoon_h", "Slot7", "Avg_finish", "In_window", "Classes"]]
+                summ = summ.sort_values(["Priority", "Teacher"], ascending=[False, True])
+                summ["Priority"] = [prio_rate(tst.loc[x_]) for x_ in summ["Teacher"]]
+                summ.columns = [t("ks_" + c_) for c_ in summ.columns]
+                with st.expander(t("tot_title_t", n=len(teachers_), h=int(len(dt))), expanded=False):
+                    st.dataframe(summ, hide_index=True, width="stretch")
+                for tch in teachers_:
+                    st.markdown(f"#### 👨‍🏫 {tch} — {t('tot_h', h=int(tot.get(tch, 0)))}")
+                    if tch in tst.index:
+                        st.markdown(teacher_chips(tst.loc[tch]), unsafe_allow_html=True)
+                    st.dataframe(styled_grid(dt, "Teacher", tch, "Label"), width="stretch")
 
 # ------------------------------------------------------------------ compare
 if PAGE == "cmp":
@@ -1161,22 +1554,26 @@ if PAGE == "cmp":
                 DB.clear(WS); st.session_state.pop("ed", None); st.rerun()
 
 # ------------------------------------------------------------------ interactive editor
-if PAGE == "edit":
-    _with_state = DB.has_state(WS)
-    editable = [v for v in versions() if v in _with_state]
-    if not editable:
-        st.info(t("solve_first"))
-    else:
-        top = st.columns([2, 1, 2])
-        v = top[0].selectbox(t("version_edit"), editable, index=default_index(editable), format_func=version_label,
-                             key=f"ed_version_{st.session_state.get('current_version')}")
+if PAGE == "tt" and TT_MODE != "view":
+    if "_rn_who" in ss:                          # teacher renamed: keep showing the same teacher
+        ss["ed_who_teacher"] = ss.pop("_rn_who")
+    if "_ed_goto" in ss:                         # "affected" strip: open that class/teacher in the single layout
+        _gk, _gw = ss.pop("_ed_goto")
+        ss["ed_layout"], ss["ed_view"], ss[f"ed_who_{_gk}"] = "single", _gk, _gw
+    if True:
+        top = st.columns([2, 2])
         ed_state = st.session_state.get("ed")
         if ed_state is None or ed_state["version"] != v:
             base = load_state(v)
             ed_state = st.session_state["ed"] = {"version": v, "base": base, "cur": base, "undo": [], "log": [], "nonce": 0}
         editor = ScheduleEditor(ed_state["cur"])
+        free = TT_MODE == "free"
+        if ss.get("_move_err"):
+            st.error(t("move_rejected", m=ss.pop("_move_err")))
+        confirm_popup(editor, ed_state)
+        affected_strip(ed_state)
 
-        layout = top[1].radio(t("layout"), ["single", "full_class", "full_teacher"], key="ed_layout",
+        layout = top[0].radio(t("layout"), ["single", "full_class", "full_teacher"], key="ed_layout",
                               format_func=lambda x: t("lay_" + x))
         if layout == "single":
             view = st.radio(t("edit_by"), ["class", "teacher"], horizontal=True, key="ed_view", format_func=t)
@@ -1184,47 +1581,11 @@ if PAGE == "edit":
                 options = sorted({l["class"] for l in editor.L.values() if not str(l["class"]).startswith("REM:")}, key=_class_key)
             else:
                 options = sorted({x for l in editor.L.values() for x in l["teachers"]})
-            who = top[2].selectbox(t(view), options, key=f"ed_who_{view}",
+            who = top[1].selectbox(t(view), options, key=f"ed_who_{view}",
                                    format_func=i18n.cls if view == "class" else str)
 
-            mine = [l for l in editor.L.values() if ((l["class"] == who or who in l.get("blocks_classes", []))
-                                                     if view == "class" else who in l["teachers"])]
-            lessons_payload = []
-            for l in mine:
-                sname = i18n.subj(l["subject"])
-                lessons_payload.append({
-                    "id": l["id"], "day": l["day"], "start": l["start"], "duration": l["duration"],
-                    "locked": editor.locked(l),
-                    "title": sname if view == "class" else f"{i18n.cls(l['class'])} · {sname}",
-                    "sub": i18n.teachers(l["teachers"]) if view == "class"
-                           else i18n.teachers([x for x in l["teachers"] if x != who]) or "&nbsp;",
-                    "colorKey": l["subject"].split("_")[0],
-                    "bg": colors.css_background(l["subject"]),
-                    "tooltip": t("tooltip", s=sname, c=i18n.cls(l["class"]), t=i18n.teachers(l["teachers"]),
-                                 d=l["duration"], r=l["rooms"]),
-                })
-            _st_map = editor.status_map([l["id"] for l in mine])
-            if view == "teacher" and who in editor.rec:
-                _rd, _rs = editor.rec[who]
-                lessons_payload.append({"id": f"REC::{who}", "day": int(_rd), "start": int(_rs), "duration": 1,
-                                        "locked": False, "title": t("rec_title"), "sub": "&nbsp;", "colorKey": "REC",
-                                        "bg": REC_BG, "tooltip": t("rec_tip", t=who)})
-                _st_map[f"REC::{who}"] = editor.rec_status(who)
+            payload = single_payload(editor, view, who, free=free, tw=ed_state["cur"].get("teacher_windows", {}))
             _tw = ed_state["cur"].get("teacher_windows", {})
-            win_cells = [f"{d_},{s_}" for d_, s_ in _tw.get(who, [])] if view == "teacher" else []
-            payload = {
-                "windows": win_cells,
-                "title": i18n.cls(who) if view == "class" else who, "lessons": lessons_payload,
-                "status": _st_map,
-                "rtl": i18n.is_ar(), "days": i18n.DAYS[i18n.LANG], "slots": [i18n.slot_label(i) for i in range(7)],
-                "i18n": {"free": t("dnd_free"), "swap": t("dnd_swap"), "impossible": t("dnd_impossible"),
-                         "current": t("dnd_current"), "hint": t("dnd_hint"), "moving": t("dnd_moving"),
-                         "not_allowed": t("dnd_not_allowed"), "applying": t("dnd_applying"), "lunch": t("dnd_lunch"),
-                         "st_green": t("st_green"), "st_yellow": t("st_yellow"), "st_red": t("st_red"),
-                         "st_current": t("st_current"), "tgt_head": t("dnd_tgt_head"), "tgt_none": t("dnd_tgt_none"),
-                         "win": t("dnd_win"), "win_msg": t("dnd_win_msg")},
-            }
-
             _live = editor.to_schedule_df()
             if view == "teacher":
                 _ts = teacher_stats(_live, ed_state["cur"].get("teacher_windows_info") or _tw,
@@ -1237,6 +1598,9 @@ if PAGE == "edit":
                 if who in _cs.index:
                     st.markdown(f"**🎒 {i18n.cls(who)}**")
                     st.markdown(class_chips(_cs.loc[who]), unsafe_allow_html=True)
+            _pdf1 = entity_pdf(_live.to_csv(index=False).encode("utf-8"), f"{WS} — {v}", view, who, i18n.LANG,
+                               json.dumps(editor.rec if view == "teacher" else {}))
+            st.link_button(t("open_this_pdf"), publish_file(_pdf1))
             event = dnd_timetable(data=payload, key=f"dnd_{v}", default=None)
             if event and event.get("nonce", 0) > ed_state["nonce"] and str(event.get("lid")).startswith("REC::"):
                 ed_state["nonce"] = event["nonce"]
@@ -1249,17 +1613,19 @@ if PAGE == "edit":
                     st.error(t("move_rejected", m=msg))
             elif event and event.get("nonce", 0) > ed_state["nonce"]:
                 ed_state["nonce"] = event["nonce"]
-                before = editor.export_state()
-                ok, msg = editor.apply(event["lid"], event["day"], event["slot"])
-                if ok:
-                    ed_state["undo"].append(before)
-                    ed_state["cur"] = editor.export_state()
-                    l = editor.L[event["lid"]]
-                    ed_state["log"].append(t("log_move", s=i18n.subj(l["subject"]), c=i18n.cls(l["class"]),
-                                             d=i18n.day(event["day"]), sl=event["slot"], m=msg))
-                    st.rerun()
-                else:
-                    st.error(t("move_rejected", m=msg))
+                queue_or_move(editor, ed_state, event["lid"], event["day"], event["slot"], free)
+
+            # adapt / pins panel (was only under the full boards before the views were merged)
+            _conf1 = editor.conflicts()
+            _pr1 = ed_state.get("proposal")
+            if _pr1 and _pr1.get("state"):
+                st.info(t("proposal_preview"))
+                _pe1 = ScheduleEditor(_pr1["state"])
+                dnd_full(data=full_payload(_pe1.L.values(), view, readonly=True, pins=_pe1.pins,
+                                           clash=_pe1.conflicts(), moved=set(_pr1["moved"])),
+                         key=f"dndprev1_{v}_{view}", default=None)
+            if free or editor.pins or _conf1 or (_pr1 and _pr1.get("state")):
+                adapt_panel(editor, ed_state, v, None, f"single_sel_{v}", _conf1)
 
         else:
             rows_by = "class" if layout == "full_class" else "teacher"
@@ -1267,7 +1633,6 @@ if PAGE == "edit":
             sel = st.session_state.get(sel_key)
             if sel not in editor.L and not str(sel).startswith("REC::"):
                 sel = None
-            free = st.toggle(t("free_mode"), key="ed_free", help=t("free_mode_help"))
             _conf = editor.conflicts()
             _pr = ed_state.get("proposal")
             if _pr and _pr.get("state"):
@@ -1301,22 +1666,13 @@ if PAGE == "edit":
                     else:
                         st.error(t("move_rejected", m=msg))
                 elif ev.get("type") == "move":
-                    before = editor.export_state()
-                    ok, msg = (editor.move_free if free else editor.apply)(ev["lid"], ev["day"], ev["slot"])
-                    if ok:
-                        ed_state["undo"].append(before)
-                        ed_state["cur"] = editor.export_state()
-                        l = editor.L[ev["lid"]]
-                        ed_state["log"].append(t("log_move", s=i18n.subj(l["subject"]), c=i18n.cls(l["class"]),
-                                                 d=i18n.day(ev["day"]), sl=ev["slot"], m=msg))
-                        st.session_state[sel_key] = None
-                        st.rerun()
-                    else:
-                        st.error(t("move_rejected", m=msg))
+                    queue_or_move(editor, ed_state, ev["lid"], ev["day"], ev["slot"], free, sel_key)
 
             if payload:
                 adapt_panel(editor, ed_state, v, sel if sel in editor.L else None, sel_key, _conf)
 
+        if not ed_state.get("proposal"):
+            improve_panel(editor, ed_state, v)
         b = st.columns(4)
         if b[0].button(t("undo"), disabled=not ed_state["undo"], width="stretch"):
             ed_state["cur"] = ed_state["undo"].pop(); ed_state["log"].append(t("log_undo")); st.rerun()
@@ -1327,6 +1683,25 @@ if PAGE == "edit":
             manager.save(editor.to_schedule_df(), new_name, state=editor.export_state())
             st.session_state["current_version"] = new_name
             st.success(t("saved_new", n=new_name))
+
+        with st.expander(t("rn_panel"), expanded=False):
+            st.caption(t("rn_help"))
+            _names = sorted({x for l in editor.L.values() for x in l["teachers"]}, key=nat)
+            _rn = st.data_editor(pd.DataFrame({t("rn_old"): _names, t("rn_new"): [""] * len(_names)}),
+                                 disabled=[t("rn_old")], hide_index=True, width="stretch",
+                                 key=f"rn_tbl_{v}_{len(ed_state['undo'])}")
+            if st.button(t("rn_apply"), key="rn_apply"):
+                _map = dict(zip(_rn[t("rn_old")], _rn[t("rn_new")].fillna("").astype(str)))
+                before = editor.export_state()
+                ok, msg = editor.rename_teachers(_map)
+                if ok:
+                    ed_state["undo"].append(before); ed_state["cur"] = editor.export_state(); ed_state["log"].append(msg)
+                    if ss.get("ed_who_teacher") in _map and str(_map[ss["ed_who_teacher"]]).strip():
+                        ss["_rn_who"] = str(_map[ss["ed_who_teacher"]]).strip()
+                    ss["_toast"] = msg
+                    st.rerun()
+                else:
+                    st.error(msg)
 
         with st.expander(t("rec_panel", n=len(editor.rec)), expanded=False):
             st.caption(t("rec_panel_help"))
@@ -1453,10 +1828,7 @@ if PAGE == "plan":
                 st.error(t("over_cap", n=len(over), s=slots_avail, d=c0.days, k=c0.slots,
                            lst=", ".join(f"{i18n.cls(c)} ({int(h)})" for c, h in over.items())))
             if len(diff):
-                with st.expander(t("diff_hours", n=len(diff))):
-                    dd = diff.copy()
-                    dd["Class"] = dd["Class"].map(i18n.cls); dd["Subject"] = dd["Subject"].map(i18n.subj)
-                    st.dataframe(loc_df(dd, "d_"), hide_index=True, width="stretch")
+                mismatch_panel("plan")
             if not len(over) and not len(diff):
                 st.success(t("plan_ok"))
             with st.expander(t("slots_title", s=slots_avail), expanded=bool(len(over))):
@@ -1544,7 +1916,7 @@ if PAGE == "plan":
 
 
 # ------------------------------------------------------------------ next step
-_NEXT = {"data": "plan", "plan": "run", "tt": "edit", "edit": "cmp"}
+_NEXT = {"data": "plan", "plan": "run", "tt": "cmp"}
 if PAGE in _NEXT and (PAGE != "data" or data_ready) and not (PAGE == "plan" and plan is None):
     st.divider()
     if st.button(t("next_to", p=t("pg_" + _NEXT[PAGE])), key="next_page"):

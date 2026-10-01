@@ -172,6 +172,8 @@ class SchedulerConfig:
         # Teacher fairness: teachers with more weekly hours get better timetables
         self.teacher_late_finish_weight = 40    # per day × index of the teacher's last slot (earlier finish = better)
         self.teacher_priority_strength = 3      # comfort weights × this factor for the most loaded teacher (×1 for the lightest)
+        self.priority_levels_share = 0.0        # 0 = priority from hours only; 0.5 = half hours, half number of levels taught
+        self.teacher_shift_weight = 0           # cost of each worked half-day (shift); 0 = off (working days only)
         self.teacher_windows_hard = True        # teachers are unavailable during their subject's pedagogical windows
 
         self.max_time_seconds = 60
@@ -258,6 +260,7 @@ class SchoolSchedulerEngine:
         self.objective_score = None
         self.penalties = []
         self.placements = {}
+        self.kpi_terms = {}               # name -> list of model terms; used by improve() (goals and guards)
 
     def build_model(self, generate=True):
         if generate:
@@ -742,9 +745,22 @@ class SchoolSchedulerEngine:
             return 1.0
         lo, hi = min(loads.values()), max(loads.values())
         k = max(1.0, float(self.config.teacher_priority_strength))
-        if hi == lo:
-            return 1.0
-        return 1.0 + (k - 1.0) * (loads.get(tch, lo) - lo) / (hi - lo)
+        a = min(1.0, max(0.0, float(getattr(self.config, 'priority_levels_share', 0.0) or 0.0)))
+        h = (loads.get(tch, lo) - lo) / (hi - lo) if hi > lo else 0.0
+        if a == 0.0:
+            return 1.0 + (k - 1.0) * h
+        lv = getattr(self, '_levels', None)
+        if lv is None:
+            cl = dict(zip(self.data.df_classes['Class_ID'], self.data.df_classes['Level']))
+            lv = {}
+            for l in self.lessons:
+                if not l.get('remedial'):
+                    for t_ in l['teachers']:
+                        lv.setdefault(t_, set()).add(cl.get(l['class']))
+            lv = self._levels = {t_: len(v) for t_, v in lv.items()}
+        l0, l1 = min(lv.values()), max(lv.values())
+        g = (lv.get(tch, l0) - l0) / (l1 - l0) if l1 > l0 else 0.0
+        return 1.0 + (k - 1.0) * ((1 - a) * h + a * g)
 
     def _apply_fixed_lessons(self):
         """Lessons fixed by the manager before solving (e.g. external teachers): {lesson key: [day, slot]}."""
@@ -911,6 +927,15 @@ class SchoolSchedulerEngine:
                 t_day_active = self.model.NewBoolVar(f"t_day_{t}_{d}")
                 for s in range(self.config.slots): self.model.AddImplication(self.teacher_active[t, d, s], t_day_active)
                 self.penalties.append(t_day_active * W(self.config.teacher_working_day_weight, f))
+                self.kpi_terms.setdefault("t_days", []).append((t_day_active, t))
+                for nm_, rng_ in (("m", range(4)), ("a", range(4, self.config.slots))):     # shifts (half-days)
+                    sh_ = self.model.NewBoolVar(f"shift_{nm_}_{t}_{d}")
+                    for s_ in rng_:
+                        self.model.AddImplication(self.teacher_active[t, d, s_], sh_)
+                    self.model.Add(sh_ <= sum(self.teacher_active[t, d, s_] for s_ in rng_))
+                    self.kpi_terms.setdefault("t_shifts", []).append((sh_, t))
+                    if getattr(self.config, 'teacher_shift_weight', 0):
+                        self.penalties.append(sh_ * W(self.config.teacher_shift_weight, f))
 
                 morn_sum = sum(busy[s] for s in range(4))
                 aft_sum = sum(busy[s] for s in range(4, 7))
@@ -919,12 +944,14 @@ class SchoolSchedulerEngine:
                     self.model.Add(sm == 1).OnlyEnforceIf(single)
                     self.model.Add(sm != 1).OnlyEnforceIf(single.Not())
                     self.penalties.append(single * W(self.config.teacher_single_hour_weight, f))
+                    self.kpi_terms.setdefault("t_single", []).append((single, t))
 
                 for s in range(self.config.slots - 2):
                     if s == 2: continue
                     sg = self.model.NewBoolVar(f"sg_{t}_{d}_{s}")
                     self.model.Add(busy[s] + busy[s + 2] - busy[s + 1] - 1 <= sg)
                     self.penalties.append(sg * W(self.config.teacher_single_gap_weight, f))
+                    self.kpi_terms.setdefault("t_gap1", []).append((sg, t))
                     if rec_ok: rec_gaps.append(sg)
 
                 for s in range(self.config.slots - 3):
@@ -932,12 +959,14 @@ class SchoolSchedulerEngine:
                     dg = self.model.NewBoolVar(f"dg_{t}_{d}_{s}")
                     self.model.Add(busy[s] + busy[s + 3] - busy[s + 1] - busy[s + 2] - 1 <= dg)
                     self.penalties.append(dg * W(self.config.teacher_double_gap_weight, f))
+                    self.kpi_terms.setdefault("t_gap2", []).append((dg, t))
 
                 if self.config.teacher_late_finish_weight:
                     last = self.model.NewIntVar(0, self.config.slots, f"last_{t}_{d}")
                     for s in range(self.config.slots):
                         self.model.Add(last >= (s + 1) * self.teacher_active[t, d, s])
                     self.penalties.append(last * W(self.config.teacher_late_finish_weight, f))
+                    self.kpi_terms.setdefault("t_late", []).append((self.teacher_active[t, d, self.config.slots - 1], t))
             if rec_gaps:          # reception hour (استقبال الأولياء): ONE single gap per week becomes the reception hour
                 rec = self.model.NewBoolVar(f"rec_{t}")
                 self.model.Add(rec <= sum(rec_gaps))
@@ -1346,6 +1375,164 @@ def repair(data, config, state, pins, fixed_assignment=None, time_limit=30, chan
                 seconds=round(_time.time() - t_start, 1), engine=eng)
 
 
+IMPROVE_KPIS = ["t_single", "t_gap1", "t_gap2", "t_shifts", "t_days", "t_late",
+                "c_empty_morning", "c_aft", "c_slot7", "c_slot7_max"]
+# relaxing a rule switches off the guards that would forbid it (linked rules)
+IMPROVE_LINKS = {"c_empty_morning": ["c_aft", "c_slot7", "c_slot7_max"],   # non-full mornings -> the grid is no longer rigid
+                 "c_slot7": ["c_slot7_max", "c_aft"],
+                 "c_aft": []}
+
+
+def _improve_build(data, config, state, fixed_assignment):
+    """Engine + model rebuilt from a saved timetable, with KPI expressions (counts K, priority-weighted KW)."""
+    eng = SchoolSchedulerEngine(data, config, fixed_assignment=fixed_assignment)
+    eng.remedial = {}
+    eng._generate_lessons_and_assignments()
+    old = {l['id']: l for l in state['lessons']}
+    gen = [l for l in eng.lessons if not l.get('remedial')]
+    for l in gen:
+        if l['id'] not in old or _lesson_sig(old[l['id']]) != _lesson_sig(l):
+            raise RepairMismatch(l['id'])
+    eng.lessons = gen + [{k: v for k, v in l.items() if k not in ('day', 'start', 'domain', 'domain_set')}
+                         for l in old.values() if l.get('remedial')]
+    eng.build_model(generate=False)
+    m, cfg = eng.model, eng.config
+    classes = eng.data.df_classes['Class_ID'].tolist()
+    lb, S, D = cfg.lunch_boundary, cfg.slots, cfg.days
+    fac = getattr(eng, 'teacher_factor', {})
+    K, KW, pcm = {}, {}, {}
+    for nm in ("t_single", "t_gap1", "t_gap2", "t_shifts", "t_days", "t_late"):
+        terms = eng.kpi_terms.get(nm, [])
+        K[nm] = sum(v for v, _t in terms)
+        KW[nm] = sum(int(round(10 * fac.get(_t, 1.0))) * v for v, _t in terms)
+    ca = eng.class_active
+    for c in classes:
+        pcm[c] = sum(1 - ca[c, d, s] for d in range(D) for s in range(lb + 1))
+    K["c_empty_morning"] = sum(pcm.values())
+    K["c_aft"] = sum(ca[c, d, s] for c in classes for d in range(D) for s in range(lb + 1, S))
+    K["c_slot7"] = sum(ca[c, d, S - 1] for c in classes for d in range(D))
+    mx7 = m.NewIntVar(0, D, "imp_max7")
+    for c in classes:
+        m.Add(mx7 >= sum(ca[c, d, S - 1] for d in range(D)))
+    K["c_slot7_max"] = mx7
+    for nm in ("c_empty_morning", "c_aft", "c_slot7", "c_slot7_max"):
+        KW[nm] = 10 * K[nm]
+    pos = {lid: (int(l['day']), int(l['start'])) for lid, l in old.items()}
+    return eng, K, KW, pcm, pos
+
+
+def improve(data, config, state, pins, goals, relax=None, guards=None, change_weight=3000, time_limit=60, max_moves=None,
+            fixed_assignment=None, main=None):
+    """Keep optimizing a FINISHED timetable ("as if the solver ran longer"), on chosen goals only.
+    goals  : KPI names to reduce (IMPROVE_KPIS); teacher KPIs are weighted by the teacher's priority factor
+    main   : one goal counted x3
+    relax  : {kpi: extra units allowed} e.g. {"c_empty_morning": 4} (empty mornings: also at most +1 per class)
+    guards : KPI names that must not get worse (default: all the others, minus those switched off by `relax`)
+    change_weight : cost of one moved lesson (0 = free re-arrangement); pins never move
+    -> dict(status, sched, state, moved, before, after, seconds)"""
+    import time as _time
+    t0 = _time.time()
+    relax = {k: int(v) for k, v in (relax or {}).items()}
+    # 1) current values, with the model's own definitions: everything fixed to the current timetable
+    e1, K1, _, pcm1, pos = _improve_build(data, config, state, fixed_assignment)
+    outside = [lid for lid in pos if (lid,) + pos[lid] not in e1.x]
+    if outside:
+        return dict(status='OUTSIDE', outside=outside, sched=None, state=None, moved=[], before={}, after={})
+    for lid, (d, s_) in pos.items():
+        e1.model.Add(e1.x[(lid, d, s_)] == 1)
+    e1.model.Minimize(0)
+    sc = cp_model.CpSolver(); sc.parameters.max_time_in_seconds = 30
+    sc.parameters.num_search_workers = config.num_workers
+    stc = sc.Solve(e1.model)
+    if stc not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return dict(status='CONFLICTS', outside=[], sched=None, state=None, moved=[], before={}, after={})
+    before = {nm: int(sc.Value(e)) for nm, e in K1.items()}
+    cur_m = {c: int(sc.Value(e)) for c, e in pcm1.items()}
+    # 2) improvement model
+    eng, K, KW, pcm, _ = _improve_build(data, config, state, fixed_assignment)
+    m, x = eng.model, eng.x
+    for p in pins:
+        if p in pos:
+            m.Add(x[(p,) + pos[p]] == 1)
+    off = set()
+    for r in relax:
+        off |= set(IMPROVE_LINKS.get(r, []))
+    if guards is None:
+        guards = [k for k in IMPROVE_KPIS if k not in goals]
+    for nm in guards:
+        if nm in relax or nm in off or nm in goals:
+            continue
+        m.Add(K[nm] <= before[nm])
+    for nm, extra in relax.items():
+        m.Add(K[nm] <= before[nm] + extra)
+        if nm == "c_empty_morning":
+            for c, e in pcm.items():
+                m.Add(e <= cur_m[c] + 1)
+    for g in goals:                                     # a goal never gets worse either
+        m.Add(K[g] <= before[g])
+    chg = sum(1 - x[(lid,) + pos[lid]] for lid in pos)
+    obj = sum((3 if g == main else 1) * 10000 * KW[g] for g in goals)
+    if change_weight:
+        obj = obj + int(change_weight) * chg
+    if max_moves is not None:                           # hard cap on moved lessons ("few changes")
+        m.Add(chg <= int(max_moves))
+    m.Minimize(obj + sum(eng.penalties))
+    m.ClearHints()
+    for (lid, d, s_), v in x.items():
+        m.AddHint(v, int(pos[lid] == (d, s_)))
+    slv = cp_model.CpSolver()
+    slv.parameters.max_time_in_seconds = max(5.0, time_limit - (_time.time() - t0))
+    slv.parameters.num_search_workers = config.num_workers
+    stt = slv.Solve(m)
+    status = slv.StatusName(stt)
+    if stt not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return dict(status=status, outside=[], sched=None, state=None, moved=[], before=before, after={})
+    after = {nm: int(slv.Value(e)) for nm, e in K.items()}
+    eng.placements = {lid: (d, s_) for (lid, d, s_), v in x.items() if slv.Value(v) == 1}
+
+    class _S:
+        Value = staticmethod(slv.Value)
+    sched = eng._extract_schedule(_S)
+    new_state = export_editable_state(eng)
+    new_state['pins'] = sorted(p for p in pins if p in pos)
+    import reception as _rc
+    new_state['reception'] = dict(state.get('reception') or {})
+    new_state['reception_removed'] = list(state.get('reception_removed') or [])
+    _rc.ensure(new_state)
+    moved = [lid for lid in pos if eng.placements.get(lid) != pos[lid]]
+    return dict(status=status, sched=sched, state=new_state, moved=moved, before=before, after=after,
+                outside=[], seconds=round(_time.time() - t0, 1))
+
+
+def cfg_to_dict(c):
+    """All solver settings as plain JSON (saved inside each version so adapt/improve use the SAME rules)."""
+    import json as _j
+    def conv(v):
+        if isinstance(v, (set, frozenset)):
+            return sorted(conv(x) for x in v)
+        if isinstance(v, (list, tuple)):
+            return [conv(x) for x in v]
+        if isinstance(v, dict):
+            return {str(k): conv(x) for k, x in v.items()}
+        return v
+    out = {}
+    for k, v in vars(c).items():
+        try:
+            out[k] = _j.loads(_j.dumps(conv(v)))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def cfg_from_dict(d):
+    c = SchedulerConfig()
+    for k, v in (d or {}).items():
+        if k == "remedial_groups":
+            v = [set(g) for g in v]
+        setattr(c, k, v)
+    return c
+
+
 def export_editable_state(engine):
     """Everything the interactive editor needs to re-check moves without re-solving."""
     domains = {}
@@ -1356,6 +1543,7 @@ def export_editable_state(engine):
     return {
         "lessons": [{**l, "day": engine.placements[l["id"]][0], "start": engine.placements[l["id"]][1],
                      "domain": domains.get(l["id"], [])} for l in engine.lessons],
+        "solver_cfg": cfg_to_dict(c),
         "class_level": {r["Class_ID"]: r["Level"] for _, r in engine.data.df_classes.iterrows()},
         # subjects whose weekly course hours allow a 2h block (Hrs_Cours >= 2), per level
         "two_hour_subjects": {lvl: sorted(g[g["Hrs_Cours"] >= 2]["Subject_Code"].tolist())
@@ -1468,6 +1656,7 @@ def teacher_stats(sched, windows=None, k=3.0):
     lo, hi = df["Hours"].min(), df["Hours"].max()
     k = max(1.0, float(k))
     df["Priority"] = [round(1.0 + (k - 1.0) * (h - lo) / (hi - lo), 2) if hi > lo else 1.0 for h in df["Hours"]]
+    df["Priority_max"] = round(k, 2)
     return df.set_index("Teacher")
 
 

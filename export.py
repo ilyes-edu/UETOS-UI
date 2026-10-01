@@ -64,6 +64,33 @@ def room_view(occ, caps):
     return out
 
 
+def teacher_rooms(tc, occ):
+    """All-teachers grid: 'class + room' is what people look for (subject is implied by the teacher).
+    occ = rooms.allocate(...) -> the room of each teacher at each (day, slot); falls back to the subject."""
+    if occ is None or len(occ) == 0:
+        return tc
+    where = {}
+    for r in occ.itertuples():
+        if not r.Room:
+            continue
+        for tch in [x.strip() for x in str(r.Teacher).split(",") if x.strip()]:
+            where.setdefault((tch, int(r.Day), int(r.Slot)), r.Room)
+    out = {}
+    for tch, cells in tc.items():
+        out[tch] = {}
+        for (d, s), (ti, sub, subj) in cells.items():
+            rm = where.get((tch, int(d), int(s)))
+            out[tch][(d, s)] = (ti, rm if rm else sub, subj)
+    return out
+
+
+def _only(cc, tc, only):
+    if not only:
+        return cc, tc
+    kind, key = only
+    return ({key: cc[key]} if kind == "class" and key in cc else {}), ({key: tc[key]} if kind == "teacher" and key in tc else {})
+
+
 def _hours(cells):
     return sum(1 for (d, s), v in cells.items() if v[2] not in ("REMEDIAL", "RECEPTION"))
 
@@ -77,7 +104,8 @@ def _add_reception(tc, reception):
 
 
 # ------------------------------------------------------------------ XLSX
-def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teacher"), rooms=None, reception=None):
+def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teacher"), rooms=None, reception=None,
+            occ=None, only=None):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
@@ -158,7 +186,8 @@ def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teac
         ws.page_setup.orientation = "landscape"; ws.sheet_properties.pageSetUpPr.fitToPage = True
 
     if "full_class" in sections: full_sheet(t("lay_full_class").replace("🗂", "").strip(), cc, True)
-    if "full_teacher" in sections: full_sheet(t("lay_full_teacher").replace("🗂", "").strip(), tc, False)
+    if "full_teacher" in sections: full_sheet(t("lay_full_teacher").replace("🗂", "").strip(), teacher_rooms(tc, occ), False)
+    cc, tc = _only(cc, tc, only)
     if "rooms" in sections and rooms: full_sheet(t("rm_view").replace("🏫", "").strip(), rooms, "room")
     if "class" in sections:
         for k, v in cc.items(): one_sheet(k, v, True)
@@ -195,7 +224,8 @@ def _ar(txt):
         return txt
 
 
-def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teacher"), rooms=None, reception=None):
+def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teacher"), rooms=None, reception=None,
+           occ=None, only=None):
     from reportlab.lib import colors as rc
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
@@ -306,7 +336,8 @@ def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teach
         story.append(tbl); story.append(PageBreak())
 
     if "full_class" in sections: full_table(t("lay_full_class").replace("🗂", "").strip(), cc, True)
-    if "full_teacher" in sections: full_table(t("lay_full_teacher").replace("🗂", "").strip(), tc, False)
+    if "full_teacher" in sections: full_table(t("lay_full_teacher").replace("🗂", "").strip(), teacher_rooms(tc, occ), False)
+    cc, tc = _only(cc, tc, only)
     if "rooms" in sections and rooms: full_table(t("rm_view").replace("🏫", "").strip(), rooms, "room")
     if "class" in sections:
         for k, v in cc.items(): one_table(k, v, True)

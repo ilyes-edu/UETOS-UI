@@ -86,6 +86,8 @@
   /* board */
   .scroller { position: relative; overflow: auto; max-height: 620px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
   .app.expanded .scroller { max-height: none; }
+  .app.fs { border-radius: 0; height: 100vh; display: flex; flex-direction: column; }
+  .app.fs .scroller { max-height: none; flex: 1 1 auto; }
   .grid { position: relative; display: grid; width: max(100%, calc(var(--label-w) + var(--n, 35) * var(--cell-w))); }
   .corner, .dh, .sh, .rl { background: var(--surface); }
   .corner { position: sticky; top: 0; inset-inline-start: 0; z-index: 7; display: flex; flex-direction: column; justify-content: center; padding: 0 12px; border-bottom: 1px solid var(--line-2); border-inline-end: 1px solid var(--line-2); }
@@ -175,6 +177,7 @@
     <div class="tools">
       <button type="button" class="tool" id="density" aria-pressed="false"></button>
       <button type="button" class="tool" id="expand" aria-pressed="false"></button>
+      <button type="button" class="tool" id="fs" aria-pressed="false"></button>
     </div>
   </div>
   <div class="bar">
@@ -198,11 +201,11 @@
   const caf = window.cancelAnimationFrame ? window.cancelAnimationFrame.bind(window) : clearTimeout;
 
   const UI = {
-    en: {search: "Search a class, teacher or subject…", week: "Whole week", compact: "Compact", all: "All rows",
+    en: {search: "Search a class, teacher or subject…", week: "Whole week", compact: "Compact", all: "All rows", full: "Full screen", exitFull: "Exit full screen",
          rows: "rows", lessons: "lessons", conflicts: "conflicts", noConflict: "No conflicts", pinned: "pinned",
          moved: "moved", cancel: "Cancel selection (Esc)", none: "No row matches your search.",
          readonly: "Read-only view", free: "Free moves mode", editing: "Interactive editor"},
-    ar: {search: "ابحث عن فوج أو أستاذ أو مادة…", week: "كامل الأسبوع", compact: "عرض مضغوط", all: "كل الأسطر",
+    ar: {search: "ابحث عن فوج أو أستاذ أو مادة…", week: "كامل الأسبوع", compact: "عرض مضغوط", all: "كل الأسطر", full: "ملء الشاشة", exitFull: "خروج من ملء الشاشة",
          rows: "سطر", lessons: "حصة", conflicts: "تعارض", noConflict: "بدون تعارض", pinned: "مثبّتة",
          moved: "منقولة", cancel: "إلغاء التحديد (Esc)", none: "لا يوجد سطر مطابق للبحث.",
          readonly: "عرض فقط", free: "وضع التنقلات الحرة", editing: "محرر تفاعلي"}
@@ -220,7 +223,8 @@
   const send = (type, extra) => window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra || {}), "*");
   const ESC = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ESC[c]);
-  const plain = (v) => { const s = String(v == null ? "" : v).trim(); return s === "&nbsp;" ? "" : s; };
+  // app.py sends "&nbsp;" as an empty subtitle (reception cards) - treat it as empty.
+  const plain = (v) => { const s = String(v == null ? "" : v).trim(); return (s === "&nbsp;" || s === "\u00a0") ? "" : s; };
   // i18n templates come from app.py (trusted, may contain <b>); inserted values are escaped.
   const fmt = (tpl, kw) => String(tpl || "").replace(/\{(\w+)\}/g, (_, k) => esc(kw && kw[k] != null ? kw[k] : ""));
   const cssColor = (v) => typeof v === "string" && v.length < 300 && /^[\w#(),.%\s-]+$/.test(v);
@@ -409,6 +413,8 @@
       .concat(A.days.map((d, i) => `<button type="button" class="chip${day === i ? " on" : ""}" data-day="${i}" aria-pressed="${day === i}">${esc(d)}</button>`)).join("");
     const dens = $("density"), exp = $("expand");
     dens.textContent = "▤ " + U.compact; dens.setAttribute("aria-pressed", String(compact)); dens.classList.toggle("on", compact);
+    const fsb = $("fs"), isFs = !!document.fullscreenElement;
+    fsb.textContent = (isFs ? "✕ " + U.exitFull : "⛶ " + U.full); fsb.classList.toggle("on", isFs);
     exp.textContent = "↕ " + U.all; exp.setAttribute("aria-pressed", String(expanded)); exp.classList.toggle("on", expanded);
     $("legend").innerHTML = A.readonly ? "" : [["var(--green)", T.free], ["var(--yellow)", T.swap], A.free ? ["var(--orange)", T.forced] : null,
       ["var(--red)", T.impossible], ["var(--blue)", T.current]].filter(Boolean)
@@ -518,6 +524,13 @@
   $("days").addEventListener("click", (e) => { const b = closest(e, "button[data-day]"); if (b) { day = Number(b.dataset.day); render(); } });
   $("density").addEventListener("click", () => { compact = !compact; store.set("compact", compact); render(); });
   $("expand").addEventListener("click", () => { expanded = !expanded; store.set("expanded", expanded); render(); });
+  $("fs").addEventListener("click", () => {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    const go = app.requestFullscreen || app.webkitRequestFullscreen;
+    const fail = () => { expanded = true; store.set("expanded", true); render(); };   // not allowed here: show all rows instead
+    try { const p = go ? go.call(app) : null; if (p && p.catch) p.catch(fail); else if (!go) fail(); } catch (e) { fail(); }
+  });
+  document.addEventListener("fullscreenchange", () => { app.classList.toggle("fs", !!document.fullscreenElement); if (A) render(); syncHeight(); });
   $("q").addEventListener("input", debounce(() => { query = $("q").value || ""; render(); }, 120));
   $("selx").addEventListener("click", cancelSelection);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") cancelSelection(); });

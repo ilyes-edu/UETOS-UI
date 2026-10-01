@@ -345,6 +345,76 @@ class ScheduleEditor:
         self.fix_reception()
         return True, msg
 
+    def preview(self, lid, d, s, free=False):
+        """What a move WOULD do, without doing it (for the confirmation popup).
+        -> {"status", "msg", "moves": {id: (d, s)}, "clash": [ids left in conflict], "entities": [("teacher"|"class", key)]}
+        entities = the OTHER teachers/classes touched (not the ones of the dragged lesson), in a stable order."""
+        l = self.L[lid]
+        st, msg, moves = self.evaluate(lid, d, s)
+        clash = []
+        if free and st == 'red':
+            ok, why = self.force_ok(lid, d, s)
+            if not ok:
+                return {"status": "red", "msg": why, "moves": {}, "clash": [], "entities": []}
+            st, msg = 'orange', t('e_forced', m=msg)
+            moves = {m['id']: (dd, ss) for m, dd, ss in self._chain_target(lid, d, s)}
+            moving = set(moves)
+            hit = set()
+            for mid, (dd, ss) in moves.items():
+                m = self.L[mid]
+                for c in self.cells(m, dd, ss):
+                    hit |= self.class_conflicts(m, c)
+                    for tt in m['teachers']:
+                        hit |= self.teacher_occ.get((tt,) + c, set())
+            clash = sorted(hit - moving)
+        own_t, own_c = set(l['teachers']), l['class']
+        ents = []
+        for i in [x for x in moves if x != lid] + clash:
+            m = self.L[i]
+            if self.chain(m) and any(x['id'] == lid for x in self.chain(m)) and i not in clash:
+                continue                                   # the dragged lesson's own split partners
+            for tt in m['teachers']:
+                if tt not in own_t and ("teacher", tt) not in ents:
+                    ents.append(("teacher", tt))
+            if m['class'] != own_c and ("class", m['class']) not in ents and not str(m['class']).startswith("REM:"):
+                ents.append(("class", m['class']))
+        # everything involved, for the popup's teacher/class switch (the "other" entities first)
+        allt, allc = [], []
+        for i in list(moves) + clash:
+            m = self.L[i]
+            allt += [x for x in m['teachers'] if x not in allt]
+            if m['class'] not in allc and not str(m['class']).startswith("REM:"):
+                allc.append(m['class'])
+            allc += [k for k in m.get('blocks_classes', []) if k not in allc]
+        allt.sort(key=lambda x: x in own_t)
+        allc.sort(key=lambda x: x == own_c)
+        return {"status": st, "msg": msg, "moves": moves, "clash": clash, "entities": ents,
+                "teachers": allt, "classes": allc}
+
+    def rename_teachers(self, mapping):
+        """Rename teachers in this solution only (lessons, windows, reception). mapping = {old: new}.
+        -> (ok, message). Refuses empty names and names that would merge two teachers."""
+        mapping = {str(o): str(n).strip() for o, n in mapping.items() if str(n).strip() and str(n).strip() != str(o)}
+        if not mapping:
+            return False, t("rn_nothing")
+        names = {x for l in self.L.values() for x in l['teachers']}
+        final = [mapping.get(x, x) for x in names]
+        dup = sorted({x for x in final if final.count(x) > 1})
+        if dup:
+            return False, t("rn_dup", x=", ".join(dup))
+        R = lambda x: mapping.get(x, x)
+        for l in self.L.values():
+            l['teachers'] = [R(x) for x in l['teachers']]
+        for key in ('teacher_windows', 'teacher_windows_info'):
+            if isinstance(self.state.get(key), dict):
+                self.state[key] = {R(k): v for k, v in self.state[key].items()}
+        if isinstance(self.state.get('reception_teachers'), list):
+            self.state['reception_teachers'] = [R(x) for x in self.state['reception_teachers']]
+        self.rec = {R(k): v for k, v in self.rec.items()}
+        self.rec_removed = {R(x) for x in self.rec_removed}
+        self._index()
+        return True, t("rn_done", n=len(mapping))
+
     def toggle_pin(self, lid):
         ids = [m['id'] for m in self.chain(self.L[lid])]
         if lid in self.pins:

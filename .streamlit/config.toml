@@ -1,0 +1,27 @@
+# UETOS - Streamlit theme (colours, radius and font only - no app logic).
+[theme]
+base = "light"
+primaryColor = "#1f6fa8"
+backgroundColor = "#f5f8fc"
+secondaryBackgroundColor = "#eaf0f7"
+textColor = "#162536"
+linkColor = "#1f6fa8"
+borderColor = "#d9e3ee"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "0.6rem"
+buttonRadius = "0.6rem"
+font = "IBM Plex Sans Arabic:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap, sans-serif"
+dataframeHeaderBackgroundColor = "#eef3f9"
+dataframeBorderColor = "#d9e3ee"
+
+[theme.sidebar]
+backgroundColor = "#eef3f9"
+secondaryBackgroundColor = "#ffffff"
+borderColor = "#d9e3ee"
+
+[client]
+toolbarMode = "minimal"
+
+[server]
+enableStaticServing = true
