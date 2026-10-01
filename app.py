@@ -739,43 +739,52 @@ def version_cfg(state):
     return make_cfg()
 
 
-def improve_panel(editor, ed_state, v):
-    """✨ Auto-improve a finished timetable: chosen KPI goals, optional relaxations, all other KPIs never worse."""
-    with st.expander(t("imp_title")):
+def improve_page(v):
+    """✨ Improve mode: re-optimise the SAVED version for chosen goals; every other indicator is protected."""
+    lab = lambda k: t("kpi_" + k)
+    base_state = load_state(v)
+    pr = ss.get("imp_prop")
+    if pr and pr.get("v") != v:
+        pr = None; ss.pop("imp_prop", None)
+    _eds = ss.get("ed")
+    if _eds and _eds.get("version") == v and _eds.get("undo"):
+        st.warning(t("imp_unsaved"))
+    if pr is None:
         st.caption(t("imp_help"))
-        lab = lambda k: t("kpi_" + k)
-        goals = st.multiselect(t("imp_goals"), IMPROVE_KPIS, default=["t_single", "t_gap1"], format_func=lab,
-                               key="imp_goals")
-        main = st.selectbox(t("imp_main"), goals, format_func=lab, key="imp_main") if goals else None
-        st.markdown(t("imp_relax"))
-        relax = {}
-        rc = st.columns(len(IMPROVE_LINKS))
-        for i, k in enumerate(IMPROVE_LINKS):
-            if k in goals:
-                continue
-            n = rc[i].number_input(lab(k), 0, 50, 0, key=f"imp_rx_{k}", help=t("imp_relax_help"))
-            if n:
-                relax[k] = int(n)
-        off = set()
-        for k in relax:
-            off |= set(IMPROVE_LINKS.get(k, []))
-        guards = [k for k in IMPROVE_KPIS if k not in goals and k not in relax and k not in off]
-        st.caption(t("imp_guards") + " " + " · ".join("🛡️ " + lab(k) for k in guards)
-                   + ("  \n" + t("imp_off") + " " + " · ".join("⛔ " + lab(k) for k in sorted(off - set(goals))) if off else ""))
-        c1, c2, c3 = st.columns([2, 2, 1])
-        mode = c1.radio(t("imp_mode"), ["few", "free"], format_func=lambda m: t("imp_mode_" + m), key="imp_mode",
-                        horizontal=True)
-        secs = c2.slider(t("adapt_time"), 30, 600, 120, step=30, key="imp_secs")
-        cap = c1.number_input(t("imp_cap"), 5, 300, 40, step=5, key="imp_cap") if mode == "few" else None
-        go = c3.button(t("imp_btn"), type="primary", disabled=not goals or not data_ready, width="stretch")
+        with st.container(border=True):
+            goals = st.multiselect(t("imp_goals"), IMPROVE_KPIS, default=["t_single", "t_gap1"], format_func=lab,
+                                   key="imp_goals")
+            main = st.selectbox(t("imp_main"), goals, format_func=lab, key="imp_main") if goals else None
+            st.markdown(t("imp_relax"))
+            relax = {}
+            rc = st.columns(len(IMPROVE_LINKS))
+            for i, k in enumerate(IMPROVE_LINKS):
+                if k in goals:
+                    continue
+                n = rc[i].number_input(lab(k), 0, 50, 0, key=f"imp_rx_{k}", help=t("imp_relax_help"))
+                if n:
+                    relax[k] = int(n)
+            off = set()
+            for k in relax:
+                off |= set(IMPROVE_LINKS.get(k, []))
+            guards = [k for k in IMPROVE_KPIS if k not in goals and k not in relax and k not in off]
+            st.caption(t("imp_guards") + " " + " · ".join("🛡️ " + lab(k) for k in guards)
+                       + ("  \n" + t("imp_off") + " " + " · ".join("⛔ " + lab(k) for k in sorted(off - set(goals))) if off else ""))
+            c1, c2, c3 = st.columns([2, 2, 1])
+            mode = c1.radio(t("imp_mode"), ["few", "free"], format_func=lambda m: t("imp_mode_" + m), key="imp_mode",
+                            horizontal=True)
+            cap = c1.number_input(t("imp_cap"), 5, 300, 40, step=5, key="imp_cap") if mode == "few" else None
+            secs = c2.slider(t("adapt_time"), 30, 600, 120, step=30, key="imp_secs")
+            go = c3.button(t("imp_btn"), type="primary", disabled=not goals or not data_ready, width="stretch")
         if not go:
             return
         import threading
         box = {"res": None, "err": None}
-        state_now, cfg_ = editor.export_state(), version_cfg(editor.export_state())
+        cfg_ = version_cfg(base_state)
+        pins_ = sorted(base_state.get("pins") or [])
         def _work():
             try:
-                box["res"] = improve(SchoolDataLoader(data_frames), cfg_, state_now, sorted(editor.pins), goals,
+                box["res"] = improve(SchoolDataLoader(data_frames), cfg_, base_state, pins_, goals,
                                      relax=relax, guards=guards, main=main,
                                      change_weight=3000 if mode == "few" else 0, max_moves=cap, time_limit=secs,
                                      fixed_assignment=plan["assignment"] if plan is not None else None)
@@ -784,8 +793,8 @@ def improve_panel(editor, ed_state, v):
         t0 = time.time(); th = threading.Thread(target=_work, daemon=True); th.start()
         bar, txt = st.progress(0.0), st.empty()
         while th.is_alive():
-            el = time.time() - t0; rem = int(max(0, 2 * secs + 20 - el))
-            bar.progress(min(1.0, el / (2 * secs + 20)))
+            el = time.time() - t0; rem = int(max(0, secs + 30 - el))
+            bar.progress(min(1.0, el / (secs + 30)))
             txt.info(t("imp_running", m=rem // 60, s=f"{rem % 60:02d}"))
             th.join(timeout=1.0)
         bar.empty(); txt.empty()
@@ -793,12 +802,46 @@ def improve_panel(editor, ed_state, v):
             st.error(t("adapt_mismatch")); return
         if box["err"] is not None:
             st.error(f"❌ {type(box['err']).__name__}: {box['err']}"); return
-        r = box["res"]
-        if r["state"] is None:
-            st.warning(t("imp_none", s=r["status"])); return
-        ed_state["proposal"] = dict(r, base=state_now, regen=False, kind="improve", level="—", clash=[],
-                                    goals=goals)
+        ss["imp_prop"] = dict(box["res"], v=v, goals=goals, secs=secs, mode=mode)
         st.rerun()
+        return
+    # ---- result
+    if pr["state"] is None:
+        if pr["status"] == "OUTSIDE":
+            st.error(t("imp_outside"))
+        else:
+            st.warning(t("imp_none", s=pr["status"]))
+    elif not pr["moved"]:
+        st.warning(t("imp_zero_opt") if pr["status"] == "OPTIMAL" else
+                   t("imp_zero", s=pr.get("solve_seconds", "?"), T=pr["secs"]))
+    else:
+        st.success(t("imp_ok", m=len(pr["moved"]), s=pr.get("seconds", "?")))
+    if pr.get("before"):
+        ik = pd.DataFrame({t("before_col"): pr["before"], t("after_col"): pr.get("after") or pr["before"]})
+        ik["Δ"] = ik[t("after_col")] - ik[t("before_col")]
+        ik.index = [("🎯 " if k in pr["goals"] else "") + lab(k) for k in ik.index]
+        st.dataframe(ik, width="stretch")
+    st.caption(t("imp_diag", st=pr["status"], s=pr.get("solve_seconds", "?"), T=pr.get("seconds", "?")))
+    if pr["state"] is not None and pr["moved"]:
+        old = {l["id"]: l for l in base_state["lessons"]}
+        pe = ScheduleEditor(pr["state"])
+        rows_by = st.radio(t("view_by"), ["class", "teacher"], horizontal=True, key="imp_rows",
+                           format_func=lambda x: t("lay_full_" + x))
+        dnd_full(data=full_payload(pe.L.values(), rows_by, readonly=True, pins=pe.pins, clash=pe.conflicts(),
+                                   moved=set(pr["moved"])), key=f"dndimp_{v}_{rows_by}", default=None)
+        where = lambda l: f"{i18n.day(l['day'])} {l['start'] + 1}"
+        rows = [{t("mv_lesson"): f"{i18n.subj(pe.L[i]['subject'])} · {i18n.cls(pe.L[i]['class'])} · {i18n.teachers(pe.L[i]['teachers'])}",
+                 t("mv_from"): where(old[i]), t("mv_to"): where(pe.L[i])} for i in pr["moved"] if i in old and i in pe.L]
+        with st.expander(t("mv_title") + f" ({len(rows)})"):
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    a1, a2 = st.columns(2)
+    if pr["state"] is not None and pr["moved"] and a1.button(t("adapt_accept"), type="primary", width="stretch"):
+        name = time.strftime("Version_%Y%m%d_%H%M%S")
+        manager.save(pr["sched"], name, state=pr["state"])
+        ss.pop("imp_prop", None); ss["current_version"] = name; ss.pop("ed", None)
+        st.toast(t("saved_new", n=name), icon="✅"); st.rerun()
+    if a2.button(t("imp_back"), width="stretch"):
+        ss.pop("imp_prop", None); st.rerun()
 
 
 # ------------------------------------------------------------------ step 2: run
@@ -1370,7 +1413,7 @@ if PAGE == "tt":
         v = _hd[0].selectbox(t("version"), vs, index=default_index(vs), format_func=version_label,
                              key=f"tt_version_{st.session_state.get('current_version')}")
         _can_edit = v in DB.has_state(WS)
-        _modes = ["view", "quick", "free"] if _can_edit else ["view"]
+        _modes = ["view", "quick", "free", "improve"] if _can_edit else ["view"]
         if ss.get("tt_mode") not in _modes:
             ss["tt_mode"] = "view"
         TT_MODE = _hd[1].radio(t("tt_mode"), _modes, horizontal=True, key="tt_mode",
@@ -1554,7 +1597,10 @@ if PAGE == "cmp":
                 DB.clear(WS); st.session_state.pop("ed", None); st.rerun()
 
 # ------------------------------------------------------------------ interactive editor
-if PAGE == "tt" and TT_MODE != "view":
+if PAGE == "tt" and TT_MODE == "improve":
+    improve_page(v)
+
+if PAGE == "tt" and TT_MODE in ("quick", "free"):
     if "_rn_who" in ss:                          # teacher renamed: keep showing the same teacher
         ss["ed_who_teacher"] = ss.pop("_rn_who")
     if "_ed_goto" in ss:                         # "affected" strip: open that class/teacher in the single layout
@@ -1671,8 +1717,6 @@ if PAGE == "tt" and TT_MODE != "view":
             if payload:
                 adapt_panel(editor, ed_state, v, sel if sel in editor.L else None, sel_key, _conf)
 
-        if not ed_state.get("proposal"):
-            improve_panel(editor, ed_state, v)
         b = st.columns(4)
         if b[0].button(t("undo"), disabled=not ed_state["undo"], width="stretch"):
             ed_state["cur"] = ed_state["undo"].pop(); ed_state["log"].append(t("log_undo")); st.rerun()

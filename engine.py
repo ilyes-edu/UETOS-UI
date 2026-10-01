@@ -1481,12 +1481,15 @@ def improve(data, config, state, pins, goals, relax=None, guards=None, change_we
     for (lid, d, s_), v in x.items():
         m.AddHint(v, int(pos[lid] == (d, s_)))
     slv = cp_model.CpSolver()
-    slv.parameters.max_time_in_seconds = max(5.0, time_limit - (_time.time() - t0))
+    slv.parameters.max_time_in_seconds = float(time_limit)      # the chosen time is all SEARCH (setup is extra)
     slv.parameters.num_search_workers = config.num_workers
+    t_s = _time.time()
     stt = slv.Solve(m)
     status = slv.StatusName(stt)
+    solve_s = round(_time.time() - t_s, 1)
     if stt not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return dict(status=status, outside=[], sched=None, state=None, moved=[], before=before, after={})
+        return dict(status=status, outside=[], sched=None, state=None, moved=[], before=before, after={},
+                    solve_seconds=solve_s)
     after = {nm: int(slv.Value(e)) for nm, e in K.items()}
     eng.placements = {lid: (d, s_) for (lid, d, s_), v in x.items() if slv.Value(v) == 1}
 
@@ -1501,7 +1504,7 @@ def improve(data, config, state, pins, goals, relax=None, guards=None, change_we
     _rc.ensure(new_state)
     moved = [lid for lid in pos if eng.placements.get(lid) != pos[lid]]
     return dict(status=status, sched=sched, state=new_state, moved=moved, before=before, after=after,
-                outside=[], seconds=round(_time.time() - t0, 1))
+                outside=[], seconds=round(_time.time() - t0, 1), solve_seconds=solve_s)
 
 
 def cfg_to_dict(c):
