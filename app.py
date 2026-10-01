@@ -623,6 +623,35 @@ def make_cfg():
     return cfg
 
 
+def live_panel(editor, ed_state):
+    """📊 Live: indicators of the working timetable vs the saved version, and every conflict, after each move."""
+    conf = editor.conflicts()
+    k0 = kpi_frame(calculate_all_kpis(ScheduleEditor(ed_state["base"]).to_schedule_df()))
+    k1 = kpi_frame(calculate_all_kpis(editor.to_schedule_df()))
+    kt = pd.DataFrame({t("live_saved"): k0, t("live_now"): k1})
+    kt["Δ"] = kt[t("live_now")] - kt[t("live_saved")]
+    c1, c2 = st.columns([2, 3])
+    with c1:
+        st.markdown(t("live_kpi"))
+        st.dataframe(kt.style.map(lambda x: "color:#c62828;font-weight:600" if x > 0 else
+                                  ("color:#2e7d32;font-weight:600" if x < 0 else ""), subset=["Δ"]),
+                     width="stretch", height=38 + 35 * len(kt))
+    with c2:
+        st.markdown(t("live_conf", n=len(conf)))
+        if not conf:
+            st.success(t("live_conf_none"))
+        else:
+            rows = []
+            for lid, why in conf.items():
+                l = editor.L[lid]
+                rows.append({t("mv_lesson"): ("📌 " if lid in editor.pins else "") + i18n.subj(l["subject"]),
+                             t("class"): i18n.cls(l["class"]), t("teacher"): i18n.teachers(l["teachers"]),
+                             t("live_when"): f"{i18n.day(l['day'])} {l['start'] + 1}", t("live_why"): why})
+            rows.sort(key=lambda r: (r[t("live_when")], r[t("class")]))
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=min(460, 38 + 35 * len(rows)))
+            st.caption(t("live_conf_help"))
+
+
 def adapt_panel(editor, ed_state, v, sel, sel_key, conf):
     """📌 pins + "Adapt the timetable": the solver re-arranges the rest, changing as few lessons as possible."""
     desc = lambda lid: f"{i18n.subj(editor.L[lid]['subject'])} · {i18n.cls(editor.L[lid]['class'])} · " \
@@ -643,10 +672,6 @@ def adapt_panel(editor, ed_state, v, sel, sel_key, conf):
             go = b1.button(t("adapt_btn"), type="primary", disabled=not editor.pins, width="stretch",
                            help=t("adapt_help"))
             regen = b2.button(t("regen_pins"), disabled=not editor.pins, width="stretch", help=t("regen_pins_help"))
-        if conf:
-            with st.expander(t("conflicts_list", n=len(conf))):
-                for lid, why in list(conf.items())[:40]:
-                    st.markdown(f"- {'📌 ' if lid in editor.pins else ''}{desc(lid)} — {why}")
         if (go or regen) and data_ready:
             import threading
             box = {"res": None, "err": None, "lvl": (0, 0)}
@@ -1267,7 +1292,7 @@ def do_move(ed_, ed_state, lid, d_, s_, free):
 def queue_or_move(ed_, ed_state, lid, d_, s_, free, sel_key=None):
     """Swaps (yellow) and forced moves (orange) touch other classes/teachers: ask first (popup), else apply now."""
     pv = ed_.preview(lid, d_, s_, free)
-    if pv["status"] in ("yellow", "orange"):
+    if pv["status"] in ("yellow", "orange") and not free:     # free edit: real time (↩️ undo instead of a popup)
         ed_state["pending"] = {"lid": lid, "d": d_, "s": s_, "free": free, "sel_key": sel_key}
         st.rerun()
     ok, msg = do_move(ed_, ed_state, lid, d_, s_, free)
@@ -1717,6 +1742,8 @@ if PAGE == "tt" and TT_MODE in ("quick", "free"):
             if payload:
                 adapt_panel(editor, ed_state, v, sel if sel in editor.L else None, sel_key, _conf)
 
+        if not ed_state.get("proposal"):
+            live_panel(editor, ed_state)
         b = st.columns(4)
         if b[0].button(t("undo"), disabled=not ed_state["undo"], width="stretch"):
             ed_state["cur"] = ed_state["undo"].pop(); ed_state["log"].append(t("log_undo")); st.rerun()

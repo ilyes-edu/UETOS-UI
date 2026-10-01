@@ -293,6 +293,8 @@ class ScheduleEditor:
                     st, msg, _ = self.evaluate(lid, d, s)
                     if free and st == 'red':
                         ok, why = self.force_ok(lid, d, s)
+                        if ok and self.forced_moves(lid, d, s) is None:
+                            ok, why = False, t('e_noswitch')
                         st, msg = ('orange', t('e_forced', m=msg)) if ok else ('red', why)
                     out[lid][f"{d},{s}"] = [st, msg]
         return out
@@ -323,6 +325,102 @@ class ScheduleEditor:
                 return False, t('e_outside')
         return True, ''
 
+    def _cell_ok(self, m, dd, ss):
+        lb, S = self.cfg['lunch_boundary'], self.cfg['slots']
+        if ss < 0 or ss + m['duration'] > S:
+            return False
+        if m['duration'] > 1 and ss <= lb < ss + m['duration'] - 1:
+            return False
+        if dd == 2 and ss + m['duration'] - 1 >= lb + 1:
+            return False
+        return True
+
+    def forced_moves(self, lid, d, s):
+        """Forced move WITH automatic switch (window exchange): the dragged lesson goes to (d, s); the time window it
+        lands on and the window it leaves are grown until each holds whole lessons of the class, then the class's
+        lessons in the two windows are exchanged (works for 1h <-> 2h too). Clashes a switch cannot solve (a teacher
+        busy in another class, a blocked hour) stay and are shown as conflicts."""
+        l = self.L[lid]
+        plain = {m['id']: (dd, ss) for m, dd, ss in self._chain_target(lid, d, s)}
+        c, d0, ds = l['class'], l['day'], s - l['start']
+        S = self.cfg['slots']
+        mine = [x for x in self.L.values() if x['class'] == c]
+        cl = [m for m in self.chain(l) if m['class'] == c and m['day'] == d0]
+        a0 = min(m['start'] for m in cl); b0 = max(m['start'] + m['duration'] for m in cl)
+        for _ in range(10):                                # source window [a0, b0) on d0  <->  [a0+ds, b0+ds) on d
+            if a0 < 0 or b0 > S or a0 + ds < 0 or b0 + ds > S:
+                return None
+            if d0 == d and a0 < b0 + ds and a0 + ds < b0:  # the two windows overlap: rotate instead
+                return self._rotate(l, cl, d, ds, plain)
+            na, nb = a0, b0
+            for x in mine:
+                e_ = x['start'] + x['duration']
+                if x['day'] == d0 and x['start'] < b0 and e_ > a0:
+                    na, nb = min(na, x['start']), max(nb, e_)
+                if x['day'] == d and x['start'] < b0 + ds and e_ > a0 + ds:
+                    na, nb = min(na, x['start'] - ds), max(nb, e_ - ds)
+            if (na, nb) == (a0, b0):
+                break
+            a0, b0 = na, nb
+        else:
+            return None
+        moves = {}
+        for x in mine:
+            e_ = x['start'] + x['duration']
+            if x['day'] == d0 and x['start'] >= a0 and e_ <= b0:
+                moves[x['id']] = (d, x['start'] + ds)
+            elif x['day'] == d and x['start'] >= a0 + ds and e_ <= b0 + ds:
+                moves[x['id']] = (d0, x['start'] - ds)
+        ids = set(moves)
+        for i in list(ids):                                # a split chain must move entirely
+            if any(m['id'] not in ids for m in self.chain(self.L[i])):
+                return None
+        if any(not self._cell_ok(self.L[i], dd, ss) for i, (dd, ss) in moves.items()):
+            return None
+        return moves
+
+    def _rotate(self, l, cl, d, ds, plain):
+        """Same-day shift that overlaps itself: the dragged lessons take the target cells, the other lessons of the
+        union window keep their order and fill the cells that are left."""
+        c = l['class']
+        a = min(m['start'] for m in cl); b = max(m['start'] + m['duration'] for m in cl)
+        ua, ub = min(a, a + ds), max(b, b + ds)
+        mine = [x for x in self.L.values() if x['class'] == c and x['day'] == d and x['id'] not in plain]
+        for _ in range(10):
+            na, nb = ua, ub
+            for x in mine:
+                if x['start'] < ub and x['start'] + x['duration'] > ua:
+                    na, nb = min(na, x['start']), max(nb, x['start'] + x['duration'])
+            if (na, nb) == (ua, ub):
+                break
+            ua, ub = na, nb
+        if ua < 0 or ub > self.cfg['slots']:
+            return None
+        others = sorted((x for x in mine if x['start'] >= ua and x['start'] + x['duration'] <= ub), key=lambda x: x['start'])
+        taken = {ss + k for i, (dd, ss) in plain.items() for k in range(self.L[i]['duration'])}
+        free = [k for k in range(ua, ub) if k not in taken]
+        moves, p = dict(plain), 0
+        for x in others:
+            if any(m['id'] not in plain and m['id'] not in {o['id'] for o in others} for m in self.chain(x)):
+                return None
+            seg = free[p:p + x['duration']]
+            if len(seg) < x['duration'] or seg != list(range(seg[0], seg[0] + x['duration'])):
+                return None
+            moves[x['id']] = (d, seg[0]); p += x['duration']
+        if any(not self._cell_ok(self.L[i], dd, ss) for i, (dd, ss) in moves.items()):
+            return None
+        return moves
+
+    def _try(self, moves):
+        """Conflicts the timetable would have after `moves` (no change to self)."""
+        e2 = ScheduleEditor.__new__(ScheduleEditor)
+        e2.__dict__.update(self.__dict__)
+        e2.L = {k: dict(v) for k, v in self.L.items()}
+        for i, (dd, ss) in moves.items():
+            e2.L[i]['day'], e2.L[i]['start'] = dd, ss
+        e2._index()
+        return e2.conflicts()
+
     def move_free(self, lid, d, s):
         """Free mode: a valid move/swap is applied normally; otherwise the lesson (and its chain) is placed anyway.
         The moved lesson(s) get a 📌 pin."""
@@ -337,9 +435,12 @@ class ScheduleEditor:
             ok, why = self.force_ok(lid, d, s)
             if not ok:
                 return False, why
-            for m, dd, ss in self._chain_target(lid, d, s):
-                m['day'], m['start'] = dd, ss
-                self.pins.add(m['id'])
+            fm = self.forced_moves(lid, d, s)
+            if fm is None:
+                return False, t('e_noswitch')
+            for i, (dd, ss) in fm.items():
+                self.L[i]['day'], self.L[i]['start'] = dd, ss
+                self.pins.add(i)
             msg = t('e_forced', m=msg)
         self._index()
         self.fix_reception()
@@ -357,16 +458,11 @@ class ScheduleEditor:
             if not ok:
                 return {"status": "red", "msg": why, "moves": {}, "clash": [], "entities": []}
             st, msg = 'orange', t('e_forced', m=msg)
-            moves = {m['id']: (dd, ss) for m, dd, ss in self._chain_target(lid, d, s)}
-            moving = set(moves)
-            hit = set()
-            for mid, (dd, ss) in moves.items():
-                m = self.L[mid]
-                for c in self.cells(m, dd, ss):
-                    hit |= self.class_conflicts(m, c)
-                    for tt in m['teachers']:
-                        hit |= self.teacher_occ.get((tt,) + c, set())
-            clash = sorted(hit - moving)
+            moves = self.forced_moves(lid, d, s)
+            if moves is None:
+                return {"status": "red", "msg": t('e_noswitch'), "moves": {}, "clash": [], "entities": []}
+            c0 = set(self.conflicts())
+            clash = sorted(set(self._try(moves)) - c0)
         own_t, own_c = set(l['teachers']), l['class']
         ents = []
         for i in [x for x in moves if x != lid] + clash:
