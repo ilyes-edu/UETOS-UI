@@ -564,6 +564,8 @@ S = {
     "free_mode_help": ("Drag lessons anywhere, even onto occupied or impossible hours (orange). Each moved lesson is pinned 📌. Then press «Adapt the timetable»: the solver keeps your pins and moves as few other lessons as possible.",
                        "اسحب الحصص إلى أي مكان حتى إلى ساعات مشغولة أو غير ممكنة (برتقالي). تُثبَّت كل حصة منقولة 📌. ثم اضغط «تكييف الجدول»: يحافظ المحلّل على التثبيتات ويغيّر أقل عدد ممكن من الحصص الأخرى."),
     "dnd_forced": ("Allowed – will be adapted", "مسموح – سيُكيَّف"),
+    "pv_all_moves": ("**All moves executed together if you confirm: {n}**", "**كل التنقلات التي ستُنفَّذ معا عند التأكيد: {n}**"),
+    "pv_left_conf": ("**⚠️ Conflicts that will remain: {n}** (shown in the live table, fix later or 🔧 adapt)", "**⚠️ تعارضات ستبقى: {n}** (تظهر في الجدول المباشر، عالجها لاحقا أو 🔧 كيّف)"),
     "live_kpi": ("**📊 Live indicators**", "**📊 المؤشرات المباشرة**"),
     "live_saved": ("Saved version", "النسخة المحفوظة"),
     "live_now": ("Now", "الآن"),

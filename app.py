@@ -1292,7 +1292,7 @@ def do_move(ed_, ed_state, lid, d_, s_, free):
 def queue_or_move(ed_, ed_state, lid, d_, s_, free, sel_key=None):
     """Swaps (yellow) and forced moves (orange) touch other classes/teachers: ask first (popup), else apply now."""
     pv = ed_.preview(lid, d_, s_, free)
-    if pv["status"] in ("yellow", "orange") and not free:     # free edit: real time (↩️ undo instead of a popup)
+    if pv["status"] in ("yellow", "orange"):         # every move that touches other lessons: show the map, ask first
         ed_state["pending"] = {"lid": lid, "d": d_, "s": s_, "free": free, "sel_key": sel_key}
         st.rerun()
     ok, msg = do_move(ed_, ed_state, lid, d_, s_, free)
@@ -1322,6 +1322,17 @@ def confirm_popup(ed_, ed_state):
         (st.warning if pv["status"] == "orange" else st.info)(pv["msg"])
         if not pv["entities"]:
             st.caption(t("pv_none"))
+        _w = lambda d_, s_: _where(d_, s_)
+        _mv = [{t("mv_lesson"): ("➡️ " if i == p["lid"] else "🔁 ") + f"{i18n.subj(ed_.L[i]['subject'])} · {i18n.cls(ed_.L[i]['class'])} · {i18n.teachers(ed_.L[i]['teachers'])}",
+                t("mv_from"): _w(ed_.L[i]["day"], ed_.L[i]["start"]), t("mv_to"): _w(*pos)} for i, pos in pv["moves"].items()
+               if (ed_.L[i]["day"], ed_.L[i]["start"]) != tuple(pos)]
+        st.markdown(t("pv_all_moves", n=len(_mv)))
+        st.dataframe(pd.DataFrame(_mv), hide_index=True, width="stretch")
+        if pv["clash"]:
+            st.markdown(t("pv_left_conf", n=len(pv["clash"])))
+            st.dataframe(pd.DataFrame([{t("mv_lesson"): f"{i18n.subj(ed_.L[i]['subject'])} · {i18n.cls(ed_.L[i]['class'])} · {i18n.teachers(ed_.L[i]['teachers'])}",
+                                        t("live_when"): _w(*pv["moves"].get(i, (ed_.L[i]["day"], ed_.L[i]["start"])))} for i in pv["clash"]]),
+                         hide_index=True, width="stretch")
         _kind = st.radio(t("pv_show"), ["teacher", "class"], horizontal=True, key="pv_kind",
                          format_func=lambda x: t("pv_show_" + x))
         st.caption(t("pv_state"))
