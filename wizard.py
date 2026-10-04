@@ -96,6 +96,10 @@ i18n.S.update({
     # step 1
     "wz_rules_from_preset": ("Group rules come from the school-type defaults; edit them later in the Data page (split rules).",
                              "قواعد التفويج من القيم الافتراضية لنوع المؤسسة؛ يمكن تعديلها لاحقًا في صفحة المعطيات (قواعد التفويج)."),
+    "wz_tl_dl": ("⬇️ Download the teacher list", "⬇️ تنزيل قائمة الأساتذة"),
+    "wz_tl_up": ("Load a teacher list (Name, Subject, Mumayaz, Remedial, Max)", "تحميل قائمة أساتذة (Name, Subject, Mumayaz, Remedial, Max)"),
+    "wz_tl_cols": ("The file needs at least the columns Name and Subject.", "يجب أن يحتوي الملف على العمودين Name و Subject على الأقل."),
+    "wz_tl_apply": ("✅ Replace the list by {n} teachers", "✅ استبدال القائمة بـ {n} أستاذًا"),
     "wz_struct": ("🌳 Years and tracks (school structure)", "🌳 السنوات والشعب (هيكل المؤسسة)"),
     "wz_struct_help": ("Years: free number and names. Tracks: optional; list the years where each track exists (IDs separated "
                        "by ';'). A year with tracks gives one level per track (e.g. 2AS-SCI); classes = level × number.",
@@ -967,6 +971,22 @@ def _teacher_list(st, ss, a, counts, key):
         ren = {o["Name"]: n["Name"] for o, n in zip(ss["wz_teachers"], new)}
         ss["wz_assign"] = {k: ren.get(v, v) for k, v in ss["wz_assign"].items()}
     ss["wz_teachers"] = new
+    _c1, _c2 = st.columns(2)                            # teacher list: download / load
+    _c1.download_button(t("wz_tl_dl"), pd.DataFrame(new).to_csv(index=False).encode("utf-8-sig"), "teachers_list.csv",
+                        "text/csv", key="wz_tl_dl", width="stretch")
+    _up = _c2.file_uploader(t("wz_tl_up"), type=["csv", "xlsx"], key="wz_tl_up", label_visibility="collapsed")
+    if _up is not None:
+        _new = (pd.read_excel(_up, dtype=str) if _up.name.endswith("xlsx") else pd.read_csv(_up, dtype=str)).fillna("")
+        if not {"Name", "Subject"} <= set(_new.columns):
+            st.error(t("wz_tl_cols"))
+        elif st.button(t("wz_tl_apply", n=len(_new)), key="wz_tl_ok"):
+            yes = lambda v: str(v).strip().lower() in ("1", "true", "yes", "x", "نعم")
+            ss["wz_teachers"] = [{"Name": r["Name"], "Subject": r["Subject"], "Mumayaz": yes(r.get("Mumayaz", "")),
+                                  "Remedial": yes(r.get("Remedial", "")),
+                                  **({"Max": int(float(r["Max"]))} if str(r.get("Max", "")).strip() not in ("", "nan") else {})}
+                                 for r in _new.to_dict("records") if str(r["Name"]).strip()]
+            ss.pop("wz_assign", None)
+            st.rerun()
     names = [x["Name"] for x in new]
     if len(set(names)) != len(names):
         st.error("⛔ " + ", ".join(sorted({n for n in names if names.count(n) > 1})))

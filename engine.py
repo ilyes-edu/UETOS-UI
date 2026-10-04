@@ -116,6 +116,45 @@ class SchoolDataLoader:
         self.df_rooms = rd('rooms')
         self.df_rules = normalize_split_rules(rd('rules'))
         self.df_grid = rd('grid') if 'grid' in paths and paths['grid'] is not None else pd.DataFrame()
+        # divided lessons: the class is split in groups, the SAME teacher teaches each group in turn
+        dv = paths.get('divided') if hasattr(paths, 'get') else None
+        self.df_divided = (dv.copy() if isinstance(dv, pd.DataFrame) else pd.DataFrame()).fillna('')
+        for c in DIVIDED_COLS:
+            if c not in self.df_divided.columns:
+                self.df_divided[c] = ''
+
+
+def _base_subjects(subj_str):
+    """'MATH_TD_G1' -> ['MATH'] ; 'ARABIC+MATH_TD/TP' -> ['ARABIC', 'MATH']."""
+    import re as _re
+    x = _re.sub(r"_G\d+$", "", str(subj_str))
+    for sfx in ('_TD/TP', '_Pract/TD', '_TD', '_TP'):
+        x = x.replace(sfx, '')
+    return x.split('+')
+
+
+DIVIDED_COLS = ["ID", "Levels", "Subject", "Type", "Groups", "Block"]
+
+
+def divided_rule(df_divided, level, subj):
+    """(groups, block, types) of the divided-lesson rule for (level, subject), or None.
+    Levels: 'ALL' or ';'-list; Type: TD | TP | TD+TP (the curriculum hours of that type are taught to each group)."""
+    if df_divided is None or df_divided.empty:
+        return None
+    for r in df_divided.to_dict('records'):
+        lv = str(r.get('Levels', '')).strip()
+        if str(r.get('Subject', '')).strip() != subj:
+            continue
+        if lv.upper() not in ('', 'ALL') and str(level) not in [x.strip() for x in lv.replace(',', ';').split(';')]:
+            continue
+        try:
+            g = max(2, int(float(r.get('Groups') or 2))); b = max(1, int(float(r.get('Block') or 1)))
+        except ValueError:
+            continue
+        ty = str(r.get('Type') or 'TD').upper().replace(' ', '')
+        types = {'TD': ['Hrs_TD'], 'TP': ['Hrs_TP'], 'TD+TP': ['Hrs_TD', 'Hrs_TP'], 'TP+TD': ['Hrs_TD', 'Hrs_TP']}.get(ty, ['Hrs_TD'])
+        return g, b, types
+    return None
 
 class SchedulerConfig:
     def __init__(self):
@@ -518,7 +557,11 @@ class SchoolSchedulerEngine:
             hrs, _ = split_rule_hours(rule)
             if subj_code in hrs:
                 td_tp_hrs = hrs[subj_code]; rule_applied = True; break
-        if not rule_applied: td_tp_hrs = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice'])
+        if not rule_applied:
+            td_tp_hrs = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice'])
+            dv = divided_rule(getattr(self.data, 'df_divided', None), c_lvl, subj_code)
+            if dv:                                   # each group gets the hours: the teacher teaches them groups times
+                td_tp_hrs += (dv[0] - 1) * sum(int(s_row[k]) for k in dv[2])
         return hrs_cours + td_tp_hrs
 
     def _generate_lessons_and_assignments(self):
@@ -573,7 +616,7 @@ class SchoolSchedulerEngine:
             subject_days_used = {}
             def mark_used(subj_str, course=False):
                 if not course: return   # TD/TP/split sessions may share a day with a course
-                for s in subj_str.replace('_TD', '').replace('_TP', '').replace('_Pract/TD', '').replace('_TD/TP', '').split('+'):
+                for s in _base_subjects(subj_str):
                     subject_days_used[s] = subject_days_used.get(s, 0) + 1
 
             consumed_td_tp = set()
@@ -621,7 +664,25 @@ class SchoolSchedulerEngine:
                 t_id = get_teacher(subj)
                 if not t_id: continue
                 r_type = s_row['Required_Room_Type']
-                if subj not in consumed_td_tp:
+                dv = None if subj in consumed_td_tp else divided_rule(self.data.df_divided, c_lvl, subj)
+                if dv:                                 # divided lesson: one lesson per group, same teacher, in turn
+                    g_n, blk, types = dv
+                    h_div = sum(int(s_row[k]) for k in types)
+                    sfx = '_TP' if types == ['Hrs_TP'] else '_TD'
+                    for g in range(1, g_n + 1):
+                        left = h_div
+                        while left > 0:
+                            d = min(blk, left)
+                            self.lessons.append({'id': f"L_{l_idx}", 'class': c_id, 'teachers': [t_id], 'subject': f"{subj}{sfx}_G{g}",
+                                                 'duration': d, 'rooms': {r_type: 1}, 'group': f"G{g}/{g_n}"})
+                            l_idx += 1; left -= d
+                    rest = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice']) - h_div
+                    while rest > 0:
+                        d = min(2, rest)
+                        self.lessons.append({'id': f"L_{l_idx}", 'class': c_id, 'teachers': [t_id], 'subject': f"{subj}_Pract/TD",
+                                             'duration': d, 'rooms': {r_type: 1}})
+                        l_idx += 1; rest -= d
+                elif subj not in consumed_td_tp:
                     hrs_extra = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice'])
                     dur = 2 if hrs_extra >= 2 else 1
                     while hrs_extra > 0:
@@ -893,7 +954,7 @@ class SchoolSchedulerEngine:
                         if h0 <= self.config.lunch_boundary < h1: continue          # never across the lunch break
                         if self.G.off_span(d, h0, h1 - h0 + 1, lvls): continue
                     conflict = False
-                    for sub_subj in l['subject'].replace('_TD', '').replace('_TP', '').replace('_Pract/TD', '').replace('_TD/TP', '').split('+'):
+                    for sub_subj in _base_subjects(l['subject']):
                         insp = self.data.df_inspections[self.data.df_inspections['Subject_Code'] == sub_subj]
                         for _, row in insp[insp['Day_Index'] == d].iterrows():
                             blocked = [int(bs) for bs in str(row['Blocked_Slots']).split(';')]
@@ -992,7 +1053,7 @@ class SchoolSchedulerEngine:
 
     def _add_pedagogical_spreading(self):
         classes = self.data.df_classes['Class_ID'].tolist()
-        def get_base_subjs(subj_str): return subj_str.replace('_TD', '').replace('_TP', '').replace('_Pract/TD', '').replace('_TD/TP', '').split('+')
+        def get_base_subjs(subj_str): return _base_subjects(subj_str)
         for c in classes:
             c_lessons = [l for l in self.lessons if l['class'] == c]
             unique_base_subjs = set()

@@ -14,6 +14,8 @@ from i18n import t, subj as S_, cls as C_, teachers as T_
 
 
 def base_subjects(subj):
+    import re as _re
+    subj = _re.sub(r"_G\d+$", "", str(subj))
     return (subj.replace('_TD/TP', '').replace('_Pract/TD', '').replace('_TD', '').replace('_TP', '')
             .split('+'))
 

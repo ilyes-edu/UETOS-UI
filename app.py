@@ -321,6 +321,11 @@ def load_joint():
 
 
 data_frames["joint_sessions"] = load_joint()
+from engine import DIVIDED_COLS
+_dv = tables.load(DB, WS, "divided")
+data_frames["divided"] = _dv if _dv is not None else pd.DataFrame(columns=DIVIDED_COLS)
+EXTRA_TABLES = {"availability": "teacher_availability.csv", "joint_sessions": "joint_sessions.csv",
+                "divided": "divided_lessons.csv", "level_week": "level_week.csv"}
 
 # ---- per-level week (overrides the preset): Level, Periods (count), Closed "day:half;..." e.g. "3:afternoon;5:all"
 LW_COLS = ["Level", "Periods", "Closed"]
@@ -688,6 +693,35 @@ if PAGE == "guide":
 
 # ------------------------------------------------------------------ input data
 if PAGE == "data":
+    import sessions_builder
+    with st.expander(t("sb_title"), expanded=False):
+        sessions_builder.render(st, DB, WS, src, data_frames)
+    # ---- all tables at once: zip download / zip upload
+    _z1, _z2 = st.columns(2)
+    import zipfile as _zf
+    _buf = io.BytesIO()
+    with _zf.ZipFile(_buf, "w") as _z:
+        for _k, _df in data_frames.items():
+            if _df is not None:
+                _z.writestr(EXTRA_TABLES.get(_k) or FILES.get(_k, _k + ".csv"), _df.to_csv(index=False).encode("utf-8-sig"))
+    _z1.download_button(t("tb_zip_dl"), _buf.getvalue(), f"{WS}_tables.zip", "application/zip", width="stretch")
+    _zu = _z2.file_uploader(t("tb_zip_up"), type=["zip"], key="tb_zip_up")
+    if _zu is not None:
+        _names = {v: k for k, v in {**FILES, **EXTRA_TABLES}.items()}
+        _found = {}
+        with _zf.ZipFile(_zu) as _z:
+            for _n in _z.namelist():
+                _b = os.path.basename(_n)
+                if _b in _names:
+                    _found[_names[_b]] = pd.read_csv(io.BytesIO(_z.read(_n)), dtype=str).fillna("")
+        if not _found:
+            st.error(t("tb_zip_none", f=", ".join(sorted(_names))))
+        else:
+            st.info(t("tb_zip_found", n=len(_found), k=", ".join(t("ds_" + k) if k in FILES else k for k in _found)))
+            if st.button(t("tb_zip_apply"), type="primary", key="tb_zip_ok"):
+                for _k, _df in _found.items():
+                    tables.save(DB, WS, _k if _k in EXTRA_TABLES else f"tbl_{src}_{_k}", _df)
+                st.rerun()
     if data_frames.get("rules") is not None:
         st.subheader(t("sr_title"))
         render_split_rules(data_frames, "data")
@@ -707,6 +741,12 @@ if PAGE == "data":
                                      "Subjects": st.column_config.TextColumn(t("js_subjects")),
                                      "Hours": st.column_config.TextColumn(t("js_hours")),
                                      "Block": st.column_config.SelectboxColumn(t("js_block"), options=["1", "2"])})
+    with st.expander(t("dv_title", n=len(data_frames["divided"]))):
+        st.caption(t("dv_help"))
+        tables.editor(st, DB, WS, "divided", data_frames["divided"], "dv", cols=DIVIDED_COLS, filename="divided_lessons.csv",
+                      column_config={"Type": st.column_config.SelectboxColumn(t("sb_type"), options=["TD", "TP", "TD+TP"]),
+                                     "Groups": st.column_config.SelectboxColumn(t("sb_groups"), options=["2", "3", "4"]),
+                                     "Block": st.column_config.SelectboxColumn(t("sb_block"), options=["1", "2"])})
     with st.expander(t("lw_title", n=len(data_frames["level_week"]))):
         st.caption(t("lw_help", days=" · ".join(f"{i + 1} = {i18n.day(i)}" for i in range(timegrid.CURRENT.days)),
                      p=timegrid.CURRENT.slots))
@@ -717,7 +757,7 @@ if PAGE == "data":
                                      "Closed": st.column_config.TextColumn(t("lw_closed"))})
     st.caption(t("tb_note"))
     for k, df in data_frames.items():
-        if df is None or k in ("availability", "joint_sessions", "level_week"):
+        if df is None or k in EXTRA_TABLES:
             continue
         with st.expander(t("rows", k=t("ds_" + k), n=len(df)) + ("  ✏️" if k in TBL_EDITED else "")):
             tables.editor(st, DB, WS, f"tbl_{src}_{k}", df, "tb_" + k, filename=FILES.get(k, k + ".csv"),
@@ -2084,6 +2124,8 @@ if PAGE == "plan":
         if st.button(t("apply_names")):
             st.session_state["plan"] = ap.rename_teachers(cur, dict(zip(lt["Teacher"], ed_lt[name_col])))
             st.rerun()
+        st.download_button(t("tb_export"), ap.load_table(cur).to_csv(index=False).encode("utf-8-sig"), "teacher_loads.csv",
+                           "text/csv", key="lt_dl")
 
         # ---- reassign classes: class × subject -> post
         st.markdown(t("reassign_title"))
@@ -2114,6 +2156,24 @@ if PAGE == "plan":
                 for c, s_, n in changes:
                     p = ap.reassign(p, c, s_, n)
                 st.session_state["plan"] = p
+                st.rerun()
+
+        # ---- assignment as a table: download / load (Teacher, Class, Subject, Hours [, Post])
+        _a1, _a2 = st.columns(2)
+        _a1.download_button(t("as_dl"), a.to_csv(index=False).encode("utf-8-sig"), "assignment_long.csv", "text/csv",
+                            key="as_dl", width="stretch")
+        _aup = _a2.file_uploader(t("as_up"), type=["csv", "xlsx"], key="as_up", label_visibility="collapsed")
+        if _aup is not None:
+            _na = (pd.read_excel(_aup, dtype=str) if _aup.name.endswith("xlsx") else pd.read_csv(_aup, dtype=str)).fillna("")
+            if not {"Teacher", "Class", "Subject", "Hours"} <= set(_na.columns):
+                st.error(t("tb_bad_cols", c="Teacher, Class, Subject, Hours"))
+            elif st.button(t("as_apply", n=len(_na)), type="primary", key="as_ok"):
+                if "Post" not in _na or (_na["Post"] == "").all():
+                    _na["Post"] = _na["Teacher"]
+                _na["Hours"] = pd.to_numeric(_na["Hours"], errors="coerce").fillna(0).astype(int)
+                st.session_state["plan"] = ap.finalize(_na[["Teacher", "Post", "Class", "Subject", "Hours"]],
+                                                       remedial={k: v for k, v in (cur.get("remedial") or {}).items()
+                                                                 if k in set(_na["Teacher"])})
                 st.rerun()
 
         # ---- school format view + download

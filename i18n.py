@@ -57,6 +57,10 @@ def slot_label(i):
 def subj(code):
     """'MATH' -> 'رياضيات' ; 'SCIENCE+PHYSICS_TD/TP' -> 'علوم طبيعية + علوم فيزيائية (أ.م/أ.ت)'."""
     code = str(code)
+    grp = re.search(r"_G(\d+)$", code)               # divided lesson: group number
+    if grp:
+        code = code[: grp.start()]
+        return subj(code) + (f" – فوج {grp.group(1)}" if LANG == "ar" else f" – group {grp.group(1)}")
     suffix = ""
     for sfx, (en, ar) in SUFFIX.items():
         if code.endswith(sfx):
@@ -78,6 +82,9 @@ SHORT = {"ARABIC": ("ARA", "عربية"), "ISLAMIC": ("ISL", "إسلامية"), 
 def subj_short(code):
     """Compact subject name for dense tables: 'INFO+FRENCH_TD' -> 'إعلام/فرنسية'."""
     code = str(code)
+    grp = re.search(r"_G(\d+)$", code)
+    if grp:
+        return subj_short(code[: grp.start()]) + f" G{grp.group(1)}"
     for sfx in ("_TD/TP", "_Pract/TD", "_TD", "_TP"):
         code = code.replace(sfx, "")
     i = 1 if LANG == "ar" else 0
@@ -610,6 +617,54 @@ S = {
                          "المؤسسة النموذجية متوسطة. لهذا النوع من المؤسسات أنشئ المؤسسة بدليل الإعداد (🧭): السنوات والشعب "
                          "وعدد الأفواج والمنهاج تأتي من ملف القيم الافتراضية."),
     "preset": ("School type (defaults)", "نوع المؤسسة (القيم الافتراضية)"),
+    "as_dl": ("⬇️ Assignment as a table (CSV)", "⬇️ الإسناد كجدول (CSV)"),
+    "as_up": ("Load an assignment table (Teacher, Class, Subject, Hours)", "تحميل جدول إسناد (Teacher, Class, Subject, Hours)"),
+    "as_apply": ("✅ Replace the assignment by {n} rows", "✅ استبدال الإسناد بـ {n} سطرًا"),
+    "sb_title": ("🧩 Create groups and special sessions", "🧩 إنشاء الأفواج والحصص الخاصة"),
+    "sb_help": ("Each form adds one row to its table below (split rules, divided lessons, joint sessions); the tables stay editable.",
+                "كل نموذج يضيف سطرًا إلى جدوله أدناه (قواعد التفويج، الحصص المقسَّمة، الحصص المشتركة)؛ وتبقى الجداول قابلة للتعديل."),
+    "sb_par": ("👥 Parallel groups", "👥 أفواج متوازية"), "sb_div": ("✂️ Divided lesson", "✂️ حصة مقسَّمة"),
+    "sb_joint": ("🔗 Several classes together", "🔗 عدة أقسام معًا"),
+    "sb_par_help": ("The class is divided in two groups taught AT THE SAME TIME by two teachers (e.g. half Physics TP / half "
+                    "Science TP), then the groups swap.",
+                    "يُقسَّم القسم إلى فوجين يدرسان في نفس الوقت مع أستاذين (مثل نصف أ.ت فيزياء / نصف أ.ت علوم)، ثم يتبادل الفوجان."),
+    "sb_div_help": ("The class is divided in groups and the SAME teacher teaches each group in turn (e.g. Computer science TP "
+                    "for group 1, then for group 2). The teacher's hours are multiplied by the number of groups.",
+                    "يُقسَّم القسم إلى أفواج ويدرّس نفس الأستاذ كل فوج بالتناوب (مثل أ.ت إعلام آلي للفوج 1 ثم للفوج 2). "
+                    "تُضرب ساعات الأستاذ في عدد الأفواج."),
+    "sb_joint_help": ("One session for several classes together: one subject (merged classes) or several subjects in parallel "
+                      "(option groups). It replaces the course hours of those subjects in those classes.",
+                      "حصة واحدة لعدة أقسام معًا: مادة واحدة (دمج أقسام) أو عدة مواد بالتوازي (أفواج اختيارية). "
+                      "تعوّض ساعات الدرس لتلك المواد في تلك الأقسام."),
+    "sb_levels": ("Levels", "المستويات"), "sb_group": ("Group {g}", "الفوج {g}"), "sb_subject": ("Subject", "المادة"),
+    "sb_type": ("Type", "النوع"), "sb_hours_group": ("Hours per session", "الساعات في الحصة"),
+    "sb_subjects_seq": ("Subject(s), one after the other", "المادة (المواد) واحدة بعد الأخرى"),
+    "sb_hours_of": ("Hours – {s}", "الساعات – {s}"),
+    "sb_swap": ("The groups swap", "يتبادل الفوجان"),
+    "sb_swap_block": ("in the same session (block twice as long)", "في نفس الحصة (كتلة بضعف المدة)"),
+    "sb_swap_week": ("the following week (alternate weeks)", "في الأسبوع الموالي (أسبوع بأسبوع)"),
+    "sb_par_desc": ("Group A: {a} {ha}h | Group B: {b} {hb}h — swap {w}.", "الفوج أ: {a} {ha}سا | الفوج ب: {b} {hb}سا — التبادل {w}."),
+    "sb_par_len": ("Group A has {a}h and group B {b}h: the session length should be equal.",
+                   "الفوج أ {a}سا والفوج ب {b}سا: يجب أن تتساوى مدة الحصة."),
+    "sb_no_hours": ("No curriculum hours of this type for: {s} – check the curriculum.", "لا توجد ساعات من هذا النوع في المنهاج لـ: {s} – تحقق من المنهاج."),
+    "sb_groups": ("Groups", "الأفواج"), "sb_block": ("Block (h)", "الكتلة (سا)"),
+    "sb_div_desc": ("{s}: {h}h per student, taught to {g} groups in turn → teacher {th}h per class.",
+                    "{s}: {h}سا لكل تلميذ، تُدرَّس لـ {g} أفواج بالتناوب ← الأستاذ {th}سا لكل قسم."),
+    "sb_joint_desc": ("{c} together: {s}, {h}h per week.", "{c} معًا: {s}، {h}سا أسبوعيًا."),
+    "sb_joint_hours": ("{h}h differs from the curriculum course hours ({c}h): the solve will ask to correct it.",
+                       "{h}سا تختلف عن ساعات الدرس في المنهاج ({c}سا): سيُطلب التصحيح قبل الحل."),
+    "sb_joint_need": ("Choose at least 2 classes and 1 subject.", "اختر قسمين على الأقل ومادة واحدة."),
+    "sb_add": ("➕ Add", "➕ إضافة"),
+    "dv_title": ("✂️ Divided lessons ({n} rows)", "✂️ الحصص المقسَّمة ({n} سطر)"),
+    "dv_help": ("Levels: ALL or codes separated by ';'. Type: TD, TP or TD+TP (those curriculum hours are taught to each group). "
+                "Groups: 2–4. Block: session length.",
+                "المستويات: ALL أو رموز يفصل بينها ';'. النوع: TD أو TP أو TD+TP (تُدرَّس ساعات المنهاج تلك لكل فوج). "
+                "الأفواج: 2–4. الكتلة: مدة الحصة."),
+    "tb_zip_dl": ("⬇️ Download all tables (zip)", "⬇️ تنزيل كل الجداول (zip)"),
+    "tb_zip_up": ("⬆️ Load tables from a zip", "⬆️ تحميل الجداول من ملف zip"),
+    "tb_zip_none": ("No known table in the zip. Expected file names: {f}", "لا يوجد جدول معروف في الملف. أسماء الملفات المنتظرة: {f}"),
+    "tb_zip_found": ("{n} tables found: {k}. They will replace the current ones.", "تم العثور على {n} جداول: {k}. ستعوّض الجداول الحالية."),
+    "tb_zip_apply": ("✅ Replace these tables", "✅ استبدال هذه الجداول"),
     "js_title": ("🔗 Joint sessions ({n} rows)", "🔗 الحصص المشتركة ({n} سطر)"),
     "js_help": ("One session shared by several classes (merged classes) or several subjects in parallel (option groups). "
                 "Classes and Subjects: codes separated by ';'. Hours = weekly hours, they replace the course hours of those "
