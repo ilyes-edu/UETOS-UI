@@ -36,14 +36,22 @@ SUFFIX = {"_TD/TP": ("TD/TP", "أ.م/أ.ت"), "_Pract/TD": ("Practice/TD", "تط
           "_TP": ("TP", "أ.ت")}
 
 
+DAY_NAMES = None          # [{"en": .., "ar": ..}] from the preset time profile (None = built-in Sunday..Thursday)
+
+
 def day(i):
-    return DAYS[LANG][i]
+    if DAY_NAMES and i < len(DAY_NAMES):
+        n = DAY_NAMES[i]
+        return n.get(LANG) or n.get("en") or str(i + 1)
+    return DAYS[LANG][i] if i < len(DAYS[LANG]) else str(i + 1)
 
 
 def slot_label(i):
+    import timegrid
+    m = i <= timegrid.CURRENT.lunch
     if LANG == "ar":
-        return f"الحصة {i + 1} ({'صباحًا' if i <= 3 else 'مساءً'})"
-    return f"Slot {i + 1} ({'M' if i <= 3 else 'A'})"
+        return f"الحصة {i + 1} ({'صباحًا' if m else 'مساءً'})"
+    return f"Slot {i + 1} ({'M' if m else 'A'})"
 
 
 def subj(code):
@@ -574,6 +582,46 @@ S = {
     "live_conf_help": ("Fix them by more moves/switches, or let the solver adapt (🔧).", "عالجها بتنقلات/تبديلات أخرى، أو دع المحلّل يكيّف (🔧)."),
     "live_when": ("When", "التوقيت"),
     "live_why": ("Problem", "المشكلة"),
+    "cap_title": ("⛔ This week cannot hold the timetable – fix the data before solving:", "⛔ هذا الأسبوع لا يتسع للجدول – صحّح البيانات قبل الحل:"),
+    "cap_class": ("- class **{w}** needs {n} h but its level's week has only {h} periods", "- القسم **{w}** يحتاج {n} سا لكن أسبوع مستواه فيه {h} حصة فقط"),
+    "cap_teacher": ("- teacher **{w}** has {n} h but is available only {h} periods", "- الأستاذ **{w}** لديه {n} سا لكنه متاح {h} حصة فقط"),
+    "tb_save": ("💾 Save", "💾 حفظ"), "tb_export": ("⬇️ Export CSV", "⬇️ تصدير CSV"),
+    "tb_import": ("Load a file (CSV / Excel)", "تحميل ملف (CSV / Excel)"),
+    "tb_reset": ("↩️ Back to source", "↩️ الرجوع إلى المصدر"),
+    "tb_bad_cols": ("Missing columns: {c}", "أعمدة ناقصة: {c}"),
+    "tb_overwrite": ("Replace the {n} current rows by the {m} rows of the file", "استبدال {n} سطرًا الحالية بـ {m} سطرًا من الملف"),
+    "tb_apply": ("✅ Load {n} rows", "✅ تحميل {n} سطرًا"),
+    "tb_note": ("Every table can be edited here, saved, exported or replaced by a file. Saved edits (✏️) are kept for this "
+                "workspace and data source; '↩️' returns to the source data.",
+                "يمكن تعديل كل جدول هنا وحفظه وتصديره أو استبداله بملف. التعديلات المحفوظة (✏️) تبقى لهذه المؤسسة ومصدر "
+                "المعطيات؛ '↩️' يعيد معطيات المصدر."),
+    "lw_title": ("📅 Week per level ({n} levels)", "📅 الأسبوع حسب المستوى ({n} مستويات)"),
+    "lw_help": ("Periods = last period of the level (max {p}). Closed = extra closed half-days, e.g. '4:afternoon;2:all'. Days: {days}. "
+                "Days and lunch break are the school's.",
+                "الحصص = آخر حصة للمستوى (الأقصى {p}). مغلق = أنصاف أيام إضافية مغلقة، مثل '4:afternoon;2:all'. الأيام: {days}. "
+                "الأيام واستراحة الغداء هي نفسها للمؤسسة."),
+    "lw_level": ("Level", "المستوى"), "lw_periods": ("Periods", "الحصص"), "lw_closed": ("Closed", "مغلق"),
+    "preset": ("School type (defaults)", "نوع المؤسسة (القيم الافتراضية)"),
+    "js_title": ("🔗 Joint sessions ({n} rows)", "🔗 الحصص المشتركة ({n} سطر)"),
+    "js_help": ("One session shared by several classes (merged classes) or several subjects in parallel (option groups). "
+                "Classes and Subjects: codes separated by ';'. Hours = weekly hours, they replace the course hours of those "
+                "subjects in those classes. Block = session length (1 or 2 h). Teachers come from the assignment.",
+                "حصة واحدة تجمع عدة أقسام (دمج أقسام) أو عدة مواد بالتوازي (أفواج اختيارية). الأقسام والمواد: رموز يفصل بينها ';'. "
+                "الساعات = الحجم الأسبوعي، وتعوض ساعات الدرس لتلك المواد في تلك الأقسام. الكتلة = مدة الحصة (1 أو 2 سا). الأساتذة من الإسناد."),
+    "js_classes": ("Classes", "الأقسام"), "js_subjects": ("Subjects", "المواد"),
+    "js_hours": ("Hours / week", "ساعات / أسبوع"), "js_block": ("Block (h)", "الكتلة (سا)"),
+    "js_warn": ("Joint session {id}: {msg} — please correct the data.", "الحصة المشتركة {id}: {msg} — يرجى تصحيح المعطيات."),
+    "av_title": ("🕒 Teacher availability ({n} rows)", "🕒 توفر الأساتذة ({n} سطر)"),
+    "av_help": ("One row per teacher/day. Periods: all, or numbers like 1;2;5. Kind: unavailable (never) or avoid (only if needed). Days: {days}",
+                "سطر لكل أستاذ/يوم. الحصص: all (الكل) أو أرقام مثل 1;2;5. النوع: unavailable (غير متاح أبدا) أو avoid (فقط عند الضرورة). الأيام: {days}"),
+    "av_day": ("Day", "اليوم"), "av_periods": ("Periods", "الحصص"), "av_kind": ("Kind", "النوع"),
+    "av_save": ("💾 Save availability", "💾 حفظ التوفر"),
+    "av_export": ("⬇️ Export CSV", "⬇️ تصدير CSV"),
+    "av_import": ("⬆️ Import CSV/XLSX", "⬆️ استيراد CSV/XLSX"),
+    "av_bad_cols": ("The file must have the columns: {c}", "يجب أن يحتوي الملف على الأعمدة: {c}"),
+    "av_overwrite": ("Replace the current table with the {n} imported rows", "استبدال الجدول الحالي بـ {n} سطر مستورد"),
+    "av_apply": ("Import {n} rows", "استيراد {n} سطر"),
+    "e_t_unavail": ("a teacher is unavailable at that time (availability table)", "أستاذ غير متاح في هذا التوقيت (جدول التوفر)"),
     "e_noswitch": ("no clean switch possible here (lessons of different lengths or a split group would overlap) – it would create a double lesson in the class",
                    "لا يمكن التبديل هنا بشكل سليم (حصص بأطوال مختلفة أو تفويج سيتداخل) – سينتج حصتان في نفس الوقت للقسم"),
     "e_forced": ("📌 switched/placed anyway – remaining conflicts are shown, the solver can adapt ({m})", "📌 بُدّلت/وُضعت رغم ذلك – التعارضات المتبقية معروضة، ويمكن للمحلّل التكييف ({m})"),

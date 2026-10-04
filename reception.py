@@ -7,6 +7,8 @@ Automatic placement, best first:
   2. any free hour on a day he already works
 Manual changes (drag in the teacher tables, add / remove) are kept as long as the hour stays free.
 """
+import timegrid
+
 
 
 def _busy(state):
@@ -31,14 +33,15 @@ def teachers_of(state):
 
 
 def is_off(state, d, s):
-    D, S, lb = _cfg(state)
-    return not (0 <= d < D and 0 <= s < S) or (d == 2 and s > lb)        # Tuesday afternoon off
+    return timegrid.from_state_cfg(state.get("config")).off_span(d, s)        # bounds + closed half-days
 
 
 def free_for(state, tc, d, s, busy=None):
     """-> (ok, reason_key)"""
     busy = busy if busy is not None else _busy(state)
     if is_off(state, d, s):
+        return False, "rec_off"
+    if [d, s] in (state.get("teacher_unavailable") or {}).get(tc, []):
         return False, "rec_off"
     if (d, s) in busy.get(tc, set()):
         return False, "rec_busy"

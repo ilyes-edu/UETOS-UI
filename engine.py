@@ -1,6 +1,7 @@
 """Timetable scheduling engine (extracted from Untitled2.ipynb, logic unchanged)."""
 import os
 import pandas as pd
+import timegrid
 from ortools.sat.python import cp_model
 
 
@@ -115,13 +116,17 @@ class SchoolDataLoader:
         self.df_rooms = rd('rooms')
         self.df_rules = normalize_split_rules(rd('rules'))
         self.df_grid = rd('grid') if 'grid' in paths and paths['grid'] is not None else pd.DataFrame()
-        self.df_subjects.loc[self.df_subjects['Subject_Code'] == 'INFO', 'Hrs_TP'] = 2
 
 class SchedulerConfig:
     def __init__(self):
         self.days = 5
         self.slots = 7
         self.lunch_boundary = 3
+        self.closed_halfdays = [[2, "afternoon"]]   # [[day, "morning"|"afternoon"]] (preset: time profile)
+        self.level_profiles = {}                    # {level: {"slots": n, "closed": [[day, half]]}} levels with their own week
+        self.teacher_unavailable = {}               # {teacher: [[day, period], ...]} hard (availability table)
+        self.teacher_avoid = {}                     # {teacher: [[day, period], ...]} soft
+        self.teacher_avoid_cost = 300               # per lesson-hour placed in an "avoid" time
 
         # Hard Constraints
         self.allow_student_gaps = False
@@ -161,7 +166,11 @@ class SchedulerConfig:
         self.remedial_cost_afternoon = 10
         self.remedial_slot7_cost = 50           # remediation in slot 7 instead of slot 6
         self.remedial_gap_cost = 400            # remediation hour not preceded by a lesson of the teacher
-        self.remedial_groups = [{'ARABIC', 'MATH'}]
+        self.remedial_groups = []                   # from the preset's remedial template (e.g. ARABIC+MATH)
+        self.same_day_exempt = []
+        self.joint_sessions = []                    # [{"id","classes":[..],"subjects":[..],"hours":h,"block":1|2}] shared sessions
+        self.remedial_periods = None                # allowed remedial periods (None = last two); from the remedial template
+        self.remedial_ends_day = True               # a remedial session before the last period ends the classes' day                   # subjects allowed twice a day in the editor check (preset)
         self.remedial_units_manual = None       # [{'teachers': [...], 'fixed': [day, slot] or None}] set before solving
         self.fixed_lessons = {}                 # {lesson key (see lesson_keys): [day, slot]} e.g. external teachers   # remediation subjects sharing ONE session (students split in groups)
         self.remedial_group_cost = 3000         # grouped sessions not at the same time
@@ -179,6 +188,11 @@ class SchedulerConfig:
         self.max_time_seconds = 60
         self.room_fallback = {'lab': 'classroom'}   # a lesson needing a lab may use a free classroom
         self.num_workers = 8
+        try:                                     # defaults come from the server preset (presets/*.json)
+            import presets as _pr
+            _pr.apply_to_config(self)
+        except FileNotFoundError:
+            pass
 
 def rem_info(assignment, remedial, valid, known):
     """{teacher: {'classes', 'subject', 'hours'}} for the teachers with remediation hours."""
@@ -251,6 +265,7 @@ class SchoolSchedulerEngine:
         self.remedial = {}                      # {teacher/post: weekly remediation hours} (الاستدراك)
         self.data = data
         self.config = config
+        self.G = timegrid.set_current(timegrid.from_config(config))   # days / periods / lunch / closed half-days
         self.model = cp_model.CpModel()
         self.x = {}
         self.class_active = {}
@@ -261,6 +276,31 @@ class SchoolSchedulerEngine:
         self.penalties = []
         self.placements = {}
         self.kpi_terms = {}               # name -> list of model terms; used by improve() (goals and guards)
+
+    def capacity_issues(self):
+        """Impossible weeks, found BEFORE solving: a class needing more hours than its level's week has, or a
+        teacher with more hours than his available cells.  -> [{"kind", "who", "need", "have"}]"""
+        G, out = self.G, []
+        cls_lv = dict(zip(self.data.df_classes['Class_ID'].astype(str), self.data.df_classes['Level'].astype(str)))
+        need_c, need_t = {}, {}
+        for l in self.lessons:
+            for c in {str(l['class'])} | {str(k) for k in l.get('blocks_classes', [])} | {str(k) for k in l.get('also_classes', [])}:
+                if c in cls_lv:
+                    need_c[c] = need_c.get(c, 0) + l['duration']
+            for tc in l['teachers']:
+                need_t[tc] = need_t.get(tc, 0) + l['duration']
+        for c, n in need_c.items():
+            have = sum(1 for d in range(G.days) for s_ in range(G.slots) if not G.is_off(d, s_, cls_lv[c]))
+            if n > have:
+                out.append({"kind": "class", "who": c, "need": n, "have": have})
+        un = {tc: {tuple(x) for x in v} for tc, v in (getattr(self.config, 'teacher_unavailable', None) or {}).items()}
+        win = getattr(self, 't_windows', {}) or {}
+        for tc, n in need_t.items():
+            have = sum(1 for d in range(G.days) for s_ in range(G.slots)
+                       if not G.is_off(d, s_) and (d, s_) not in un.get(tc, ()) and (d, s_) not in win.get(tc, ()))
+            if n > have:
+                out.append({"kind": "teacher", "who": tc, "need": n, "have": have})
+        return out
 
     def build_model(self, generate=True):
         if generate:
@@ -449,7 +489,7 @@ class SchoolSchedulerEngine:
         """Days on which `subj` still has at least one usable slot (pedagogical windows + Tuesday afternoon off)."""
         n = 0
         for d in range(self.config.days):
-            slots = set(range(4) if d == 2 else range(self.config.slots))
+            slots = set(self.G.open_slots(d))
             insp = self.data.df_inspections[(self.data.df_inspections['Subject_Code'] == subj) & (self.data.df_inspections['Day_Index'] == d)]
             for _, row in insp.iterrows():
                 slots -= {int(b) for b in str(row['Blocked_Slots']).split(';') if str(b).strip() != ''}
@@ -517,6 +557,7 @@ class SchoolSchedulerEngine:
             else: raise Exception(__import__("i18n").t("assign_failed"))
 
         l_idx = 0
+        joint_cover = self._make_joint_sessions()         # {(class, subject)} whose course hours are a joint session
         def _get_room(lvl, subj):
             row = self.data.df_subjects[(self.data.df_subjects['Level'] == lvl) & (self.data.df_subjects['Subject_Code'] == subj)]
             return row.iloc[0]['Required_Room_Type'] if not row.empty else 'classroom'
@@ -598,6 +639,7 @@ class SchoolSchedulerEngine:
 
                 hrs_cours = int(s_row['Hrs_Cours'])
                 r_type = s_row['Required_Room_Type']
+                if (str(c_id), subj) in joint_cover: continue        # taught in a joint session (template)
                 if hrs_cours <= 0: continue
 
                 # Calculate how many days we have left for this subject
@@ -629,6 +671,50 @@ class SchoolSchedulerEngine:
                                      'blocks_classes': sorted(classes, key=str), 'rem_subject': subj,
                                      **({'fixed': self._rem_fixed[tuple(unit)]} if tuple(unit) in getattr(self, '_rem_fixed', {}) and k == 0 else {})})
                 l_idx += 1
+
+    def _make_joint_sessions(self):
+        """Joint sessions (templates): ONE session shared by several classes, with one or more subjects taught in
+        parallel (merged classes, option groups).  It counts as class time for every class in it; teachers come from
+        the assignment (all teachers of those subjects in those classes); one room per subject group.
+        Returns {(class, subject)} whose course hours are replaced by the template."""
+        cover = set()
+        self.joint_warnings = []
+        cls_lv = dict(zip(self.data.df_classes['Class_ID'].astype(str), self.data.df_classes['Level'].astype(str)))
+        n = 0
+        for tp in getattr(self.config, 'joint_sessions', None) or []:
+            classes = [str(c) for c in tp.get('classes', []) if str(c) in cls_lv]
+            subjects = [str(x) for x in tp.get('subjects', [])]
+            hours, block = int(tp.get('hours', 0) or 0), max(1, int(tp.get('block', 1) or 1))
+            if len(classes) < 1 or not subjects or hours <= 0:
+                self.joint_warnings.append((tp.get('id'), 'incomplete'))
+                continue
+            teachers, rooms = [], {}
+            for sj in subjects:
+                a = self.assignment[(self.assignment['Class'].astype(str).isin(classes)) & (self.assignment['Subject'] == sj)]
+                tl = list(dict.fromkeys(a['Teacher']))
+                if not tl:
+                    self.joint_warnings.append((tp.get('id'), f'no teacher for {sj}'))
+                for tc in tl:
+                    if tc not in teachers:
+                        teachers.append(tc)
+                    row = self.data.df_subjects[(self.data.df_subjects['Subject_Code'] == sj)
+                                                & (self.data.df_subjects['Level'] == cls_lv[classes[0]])]
+                    rt = row.iloc[0]['Required_Room_Type'] if not row.empty else 'classroom'
+                    rooms[rt] = rooms.get(rt, 0) + 1
+                for c in classes:
+                    row = self.data.df_subjects[(self.data.df_subjects['Subject_Code'] == sj) & (self.data.df_subjects['Level'] == cls_lv[c])]
+                    if row.empty or int(row.iloc[0]['Hrs_Cours']) != hours:
+                        self.joint_warnings.append((tp.get('id'), f'{c}/{sj}: curriculum course hours differ from {hours}'))
+                    cover.add((c, sj))
+            if not teachers:
+                continue
+            left = hours
+            while left > 0:
+                d = min(block, left)
+                self.lessons.append({'id': f"J_{n}", 'class': classes[0], 'also_classes': classes[1:], 'teachers': teachers,
+                                     'subject': '+'.join(subjects), 'duration': d, 'rooms': rooms, 'joint': tp.get('id')})
+                n += 1; left -= d
+        return cover
 
     # =========================================================
     # REMAINDER OF THE SOLVER (Constraints, Extractor, etc.)
@@ -676,7 +762,7 @@ class SchoolSchedulerEngine:
         """A remediation session in slot 6 ends the day of all its classes: nothing in slot 7 (lesson or remediation)."""
         S = self.config.slots
         rem = [l for l in self.lessons if l.get('remedial')]
-        if not rem:
+        if not rem or not getattr(self.config, 'remedial_ends_day', True):
             return
         for c in self.data.df_classes['Class_ID'].tolist():
             mine = [l for l in rem if c in l.get('blocks_classes', ())]
@@ -774,8 +860,16 @@ class SchoolSchedulerEngine:
                     l['fixed'] = tuple(int(v) for v in fx[k])
                     break
 
+    def _lesson_levels(self, l):
+        if not hasattr(self, '_cls_level'):
+            self._cls_level = dict(zip(self.data.df_classes['Class_ID'].astype(str), self.data.df_classes['Level'].astype(str)))
+        return [self._cls_level[c] for c in [str(l['class'])] + [str(k) for k in l.get('blocks_classes', [])]
+                + [str(k) for k in l.get('also_classes', [])]
+                if c in self._cls_level]
+
     def _create_variables(self):
         self.t_windows = self._teacher_windows() if self.config.teacher_windows_hard else {}
+        t_off = {tc: {tuple(c) for c in v} for tc, v in (getattr(self.config, 'teacher_unavailable', None) or {}).items()}
         self._loads = self._teacher_loads()
         for l in self.lessons:
             l_id, dur = l['id'], l['duration']
@@ -784,17 +878,20 @@ class SchoolSchedulerEngine:
                 if 0 <= s and s + dur <= self.config.slots:
                     self.x[l_id, d, s] = self.model.NewBoolVar(f"x_{l_id}_{d}_{s}")
                 continue
+            lvls = self._lesson_levels(l)
             for d in range(self.config.days):
                 for s in range(self.config.slots):
                     if s + dur > self.config.slots: continue
                     if dur == 2 and s == self.config.lunch_boundary: continue
-                    if d == 2 and (s >= 4 or s + dur - 1 >= 4): continue
-                    if l.get('remedial') and s < self.config.slots - 2: continue
+                    if self.G.off_span(d, s, dur, lvls): continue
+                    if t_off and any((d, s + k) in t_off.get(tc, ()) for tc in l['teachers'] for k in range(dur)): continue
+                    if l.get('remedial') and s not in (getattr(self.config, 'remedial_periods', None)
+                                                       or range(self.config.slots - 2, self.config.slots)): continue
                     if 'chain_total' in l:
                         h0, h1 = s - l['chain_offset'], s - l['chain_offset'] + l['chain_total'] - 1
                         if h0 < 0 or h1 >= self.config.slots: continue
                         if h0 <= self.config.lunch_boundary < h1: continue          # never across the lunch break
-                        if d == 2 and h1 >= 4: continue
+                        if self.G.off_span(d, h0, h1 - h0 + 1, lvls): continue
                     conflict = False
                     for sub_subj in l['subject'].replace('_TD', '').replace('_TP', '').replace('_Pract/TD', '').replace('_TD/TP', '').split('+'):
                         insp = self.data.df_inspections[self.data.df_inspections['Subject_Code'] == sub_subj]
@@ -828,7 +925,8 @@ class SchoolSchedulerEngine:
         for d in range(self.config.days):
             for s in range(self.config.slots):
                 for c in classes:
-                    c_lessons = [self.x[l['id'], d, s - step] for l in self.lessons if l['class'] == c for step in range(l['duration']) if (l['id'], d, s - step) in self.x]
+                    c_lessons = [self.x[l['id'], d, s - step] for l in self.lessons if l['class'] == c or c in l.get('also_classes', ())
+                                 for step in range(l['duration']) if (l['id'], d, s - step) in self.x]
                     blockers = [self.x[l['id'], d, s] for l in self.lessons if c in l.get('blocks_classes', ()) and (l['id'], d, s) in self.x]
                     expr = sum(c_lessons)
                     self.model.Add(expr + sum(blockers) <= 1)      # remediation: all the unit's classes free
@@ -928,7 +1026,7 @@ class SchoolSchedulerEngine:
                 for s in range(self.config.slots): self.model.AddImplication(self.teacher_active[t, d, s], t_day_active)
                 self.penalties.append(t_day_active * W(self.config.teacher_working_day_weight, f))
                 self.kpi_terms.setdefault("t_days", []).append((t_day_active, t))
-                for nm_, rng_ in (("m", range(4)), ("a", range(4, self.config.slots))):     # shifts (half-days)
+                for nm_, rng_ in (("m", self.G.morning), ("a", self.G.afternoon)):     # shifts (half-days)
                     sh_ = self.model.NewBoolVar(f"shift_{nm_}_{t}_{d}")
                     for s_ in rng_:
                         self.model.AddImplication(self.teacher_active[t, d, s_], sh_)
@@ -937,8 +1035,8 @@ class SchoolSchedulerEngine:
                     if getattr(self.config, 'teacher_shift_weight', 0):
                         self.penalties.append(sh_ * W(self.config.teacher_shift_weight, f))
 
-                morn_sum = sum(busy[s] for s in range(4))
-                aft_sum = sum(busy[s] for s in range(4, 7))
+                morn_sum = sum(busy[s] for s in self.G.morning)
+                aft_sum = sum(busy[s] for s in self.G.afternoon)
                 for nm, sm in (("m", morn_sum), ("a", aft_sum)):
                     single = self.model.NewBoolVar(f"{nm}_single_{t}_{d}")
                     self.model.Add(sm == 1).OnlyEnforceIf(single)
@@ -989,11 +1087,11 @@ class SchoolSchedulerEngine:
             h[l['class']] = h.get(l['class'], 0) + l['duration']
         return h
 
-    def required_cells(self, hours):
-        """Cells that MUST be used by a class with `hours` weekly slots under the standard grid."""
+    def required_cells(self, hours, level=None):
+        """Cells that MUST be used by a class with `hours` weekly slots under the standard grid (its level's week)."""
         cfg = self.config
-        morning = [(d, s) for d in range(cfg.days) for s in range(cfg.lunch_boundary + 1)]
-        aft_days = [d for d in range(cfg.days) if d != 2]
+        morning = [(d, s) for d in range(cfg.days) for s in self.G.morning if not self.G.is_off(d, s, level)]
+        aft_days = [d for d in range(cfg.days) if self.G.afternoon and not self.G.is_off(d, self.G.afternoon[0], level)]
         req = []
         if hours >= len(morning):
             req += morning
@@ -1007,7 +1105,8 @@ class SchoolSchedulerEngine:
         minimizing this cost fills mornings, then slots 5–6, then the 7th slot – as long as the rules allow it."""
         cfg = self.config
         hrs = self.class_hours()
-        self.class_required = {c: self.required_cells(hrs.get(c, 0)) for c in self.data.df_classes['Class_ID']}
+        self.class_required = {c: self.required_cells(hrs.get(c, 0), lv) for c, lv in
+                               zip(self.data.df_classes['Class_ID'], self.data.df_classes['Level'].astype(str))}
         lb = cfg.lunch_boundary
         self.grid_terms = []
         for c in self.data.df_classes['Class_ID'].tolist():
@@ -1046,14 +1145,31 @@ class SchoolSchedulerEngine:
                         self.penalties.append(self.teacher_active[t, d, a]
                                               * int(round(cfg.teacher_afternoon_penalty * self.priority_factor(t))))
 
+    def _add_teacher_avoid(self):
+        av = {tc: {tuple(c) for c in v} for tc, v in (getattr(self.config, 'teacher_avoid', None) or {}).items()}
+        w = int(getattr(self.config, 'teacher_avoid_cost', 0) or 0)
+        if not av or not w:
+            return
+        for l in self.lessons:
+            cells_t = [av[tc] for tc in l['teachers'] if tc in av]
+            if not cells_t:
+                continue
+            for (lid, d, s), v in list(self.x.items()):
+                if lid == l['id']:
+                    n = sum(1 for k in range(l['duration']) for cs in cells_t if (d, s + k) in cs)
+                    if n:
+                        self.penalties.append(v * (w * n))
+
     def _build_objective_function(self):
+        self._add_teacher_avoid()
         classes = self.data.df_classes['Class_ID'].tolist()
         for c in classes if not getattr(self.config, 'strict_class_grid', False) else []:   # grid prices these cells
             for d in range(self.config.days):
-                self.penalties.append(self.class_active[c, d, 1] * self.config.slot_1_penalty)
-                self.penalties.append(self.class_active[c, d, 4] * self.config.slot_4_penalty)
-                self.penalties.append(self.class_active[c, d, 5] * self.config.slot_5_penalty)
-                self.penalties.append(self.class_active[c, d, 6] * self.config.slot_7_penalty)
+                _a = self.G.afternoon                         # 2nd period, 1st/2nd afternoon periods, last period
+                for s_, w_ in ((1, self.config.slot_1_penalty), (_a[0] if _a else None, self.config.slot_4_penalty),
+                               (_a[1] if len(_a) > 1 else None, self.config.slot_5_penalty), (self.G.last, self.config.slot_7_penalty)):
+                    if s_ is not None and w_:
+                        self.penalties.append(self.class_active[c, d, s_] * w_)
         lb = self.config.lunch_boundary
         for l in self.lessons:
             if l.get('remedial'):
@@ -1081,8 +1197,10 @@ class SchoolSchedulerEngine:
                 for s in range(self.config.slots):
                     if (l['id'], d, s) in self.x and solver.Value(self.x[l['id'], d, s]) == 1:
                         for step in range(l['duration']):
-                            res.append({'Class': l['class'], 'Day': d, 'Slot': s + step, 'Subject': l['subject'], 'Teachers': ", ".join(l['teachers']),
-                                        'Classes': ", ".join(l.get('blocks_classes', [])), 'RemSubject': l.get('rem_subject', '')})
+                            for cc in [l['class']] + list(l.get('also_classes', [])):
+                                res.append({'Class': cc, 'Day': d, 'Slot': s + step, 'Subject': l['subject'], 'Teachers': ", ".join(l['teachers']),
+                                            'Classes': ", ".join(l.get('blocks_classes', [])), 'RemSubject': l.get('rem_subject', ''),
+                                            'Joint': l.get('joint', '') or ''})
         return pd.DataFrame(res)
 
 class SolutionManager:
@@ -1111,6 +1229,7 @@ class SolutionManager:
 
 
 def calculate_all_kpis(df):
+    _G = timegrid.CURRENT
     if df is None: return {}
     kpis = {}
     df = df[(~df['Class'].astype(str).str.startswith(REM_PREFIX)) & (df['Subject'] != 'REMEDIAL')]
@@ -1118,27 +1237,27 @@ def calculate_all_kpis(df):
     # --- 1. STUDENT KPIs ---
     student_gaps = 0
     for c, group in df.groupby('Class'):
-        for d in range(5):
+        for d in range(_G.days):
             slots = sorted(group[group['Day'] == d]['Slot'].tolist())
-            morn = [s for s in slots if s < 4]
-            aft = [s for s in slots if s >= 4]
+            morn = [s for s in slots if s <= _G.lunch]
+            aft = [s for s in slots if s > _G.lunch]
             if len(morn) > 1: student_gaps += (morn[-1] - morn[0] + 1) - len(morn)
             if len(aft) > 1: student_gaps += (aft[-1] - aft[0] + 1) - len(aft)
 
     kpis['Student Gaps (Free Periods)'] = student_gaps
-    kpis['Empty Morning Slots (classes)'] = sum(4 - len(g[(g['Day'] == d) & (g['Slot'] < 4)]['Slot'].unique())
-                                                for _, g in df.groupby('Class') for d in range(5))
-    kpis['Afternoon Hours (classes)'] = len(df[df['Slot'] >= 4])
+    kpis['Empty Morning Slots (classes)'] = sum(_G.n_morning - len(g[(g['Day'] == d) & (g['Slot'] <= _G.lunch)]['Slot'].unique())
+                                                for _, g in df.groupby('Class') for d in range(_G.days))
+    kpis['Afternoon Hours (classes)'] = len(df[df['Slot'] > _G.lunch])
     kpis['Afternoon used w/o full morning'] = sum(
-        1 for _, g in df.groupby('Class') for d in range(5)
-        if (g[(g['Day'] == d)]['Slot'] >= 4).any() and len(g[(g['Day'] == d) & (g['Slot'] < 4)]['Slot'].unique()) < 4)
+        1 for _, g in df.groupby('Class') for d in range(_G.days)
+        if (g[(g['Day'] == d)]['Slot'] > _G.lunch).any() and len(g[(g['Day'] == d) & (g['Slot'] <= _G.lunch)]['Slot'].unique()) < _G.n_morning)
     kpis['Slot 1 Usage (Late Morning)'] = len(df[df['Slot'] == 1])
     kpis['Slot 4 Usage (Early Aft)'] = len(df[df['Slot'] == 4])
     kpis['Slot 5 Usage (Mid Aft)'] = len(df[df['Slot'] == 5])
-    kpis['Slot 7 Usage (Late Dismissal)'] = len(df[df['Slot'] == 6])
+    kpis['Slot 7 Usage (Late Dismissal)'] = len(df[df['Slot'] == _G.last])
 
     # Max Late Slots for a single class (Equity check)
-    class_late = df[df['Slot'] == 6].groupby('Class')['Slot'].count()
+    class_late = df[df['Slot'] == _G.last].groupby('Class')['Slot'].count()
     kpis['Max Slot 7s for any single class'] = class_late.max() if not class_late.empty else 0
 
     # --- 2. TEACHER KPIs ---
@@ -1151,8 +1270,8 @@ def calculate_all_kpis(df):
     single_shifts, single_gaps, double_gaps = 0, 0, 0
     for (t, d), group in df_t.groupby(['Teacher', 'Day']):
         slots = sorted(group['Slot'].tolist())
-        morn = [s for s in slots if s < 4]
-        aft = [s for s in slots if s >= 4]
+        morn = [s for s in slots if s <= _G.lunch]
+        aft = [s for s in slots if s > _G.lunch]
 
         if len(morn) == 1: single_shifts += 1
         if len(aft) == 1: single_shifts += 1
@@ -1224,7 +1343,7 @@ def repair(data, config, state, pins, fixed_assignment=None, time_limit=30, chan
     for p in pins:                                      # obvious contradictions between pins: same class/teacher, same hour
         l = by_id[p]
         for k in range(l['duration']):
-            for who in [l['class']] + list(l.get('blocks_classes', [])) + list(l['teachers']):
+            for who in [l['class']] + list(l.get('blocks_classes', [])) + list(l.get('also_classes', [])) + list(l['teachers']):
                 key = (who, pos[p][0], pos[p][1] + k)
                 if key in occ and occ[key] != p and not (l.get('remedial') and by_id[occ[key]].get('remedial')
                                                           and who not in l['teachers']):
@@ -1244,7 +1363,7 @@ def repair(data, config, state, pins, fixed_assignment=None, time_limit=30, chan
         return out
 
     def members(l):
-        return set(l['teachers']) | {l['class']} | set(l.get('blocks_classes', []))
+        return set(l['teachers']) | {l['class']} | set(l.get('blocks_classes', [])) | set(l.get('also_classes', []))
 
     def grow(ids):
         keys = set().union(*(members(by_id[i]) for i in ids)) if ids else set()
@@ -1273,9 +1392,10 @@ def repair(data, config, state, pins, fixed_assignment=None, time_limit=30, chan
             def touched(ids):       # target days + days where the moved lessons' classes now have a hole
                 days = {pos[p][0] for p in ids}
                 for p in ids:
-                    for c in [by_id[p]['class']] + list(by_id[p].get('blocks_classes', [])):
+                    for c in [by_id[p]['class']] + list(by_id[p].get('blocks_classes', [])) + list(by_id[p].get('also_classes', [])):
                         used = {(pos_cur[l['id']][0], pos_cur[l['id']][1] + k) for l in eng.lessons
-                                if l['class'] == c and not l.get('remedial') for k in range(l['duration'])}
+                                if (l['class'] == c or c in l.get('also_classes', ())) and not l.get('remedial')
+                                for k in range(l['duration'])}
                         days |= {d for d, s_ in state.get('class_required', {}).get(c, []) if (d, s_) not in used}
                 return days
 
@@ -1553,6 +1673,9 @@ def export_editable_state(engine):
                               for lvl, g in engine.data.df_subjects.groupby("Level")},
         "rooms": {r["Room_Type"]: int(r["Capacity"]) for _, r in engine.data.df_rooms.iterrows()},
         "config": {"days": c.days, "slots": c.slots, "lunch_boundary": c.lunch_boundary,
+                   "same_day_exempt": list(getattr(c, "same_day_exempt", [])),
+                   "closed": [list(x) for x in getattr(c, "closed_halfdays", timegrid.DEFAULT_CLOSED)],
+                   "level_off": {k: sorted([list(x) for x in v]) for k, v in engine.G.level_off.items()},
                    "room_fallback": getattr(c, "room_fallback", {}) or {},
                    "allow_student_gaps": c.allow_student_gaps,
                    "allow_same_subject_twice_per_day": c.allow_same_subject_twice_per_day,
@@ -1562,6 +1685,7 @@ def export_editable_state(engine):
                    "strict_class_grid": getattr(c, "strict_class_grid", False),
                    "no_slot7_days": list(getattr(c, "no_slot7_days", []) if getattr(c, "strict_class_grid", False) else [])},
         "class_required": {k: [list(x) for x in v] for k, v in getattr(engine, "class_required", {}).items()},
+        "teacher_unavailable": {tc: sorted([list(x) for x in v]) for tc, v in (getattr(c, "teacher_unavailable", None) or {}).items()},
         "teacher_windows": {tch: sorted([list(x) for x in cells]) for tch, cells in getattr(engine, 't_windows', {}).items()},
         "teacher_windows_info": {tch: sorted([list(x) for x in cells]) for tch, cells in engine._teacher_windows().items()},
         "priority_strength": float(getattr(c, "teacher_priority_strength", 3.0)),
@@ -1589,6 +1713,7 @@ def grid_report(sched, engine):
 
 def teacher_fairness(sched, engine=None):
     """Per-teacher comfort report from a schedule (Class, Day, Slot, Subject, Teachers)."""
+    _G = timegrid.CURRENT
     rows = []
     if sched is None or sched.empty:
         return pd.DataFrame()
@@ -1600,7 +1725,7 @@ def teacher_fairness(sched, engine=None):
         finishes = []
         for d, gd in g.groupby("Day"):
             busy = set(gd["Slot"]) | {s for (dd, s) in win.get(tch, set()) if dd == d}
-            for half in (range(0, 4), range(4, 7)):
+            for half in (_G.morning, _G.afternoon):
                 act = sorted(s for s in busy if s in half)
                 if act:
                     gaps += (act[-1] - act[0] + 1) - len(act)
@@ -1608,7 +1733,7 @@ def teacher_fairness(sched, engine=None):
             finishes.append(int(gd["Slot"].max()) + 1)
             late += int(gd["Slot"].max()) >= 5
         rows.append({"Teacher": tch, "Hours": len(g), "Days": g["Day"].nunique(), "Gaps": gaps,
-                     "Single_hour": int(singles), "Afternoon_h": int((g["Slot"] >= 4).sum()),
+                     "Single_hour": int(singles), "Afternoon_h": int((g["Slot"] > _G.lunch).sum()),
                      "Avg_finish": round(sum(finishes) / len(finishes), 2), "Late_days": late})
     return pd.DataFrame(rows).sort_values(["Hours", "Teacher"], ascending=[False, True]).reset_index(drop=True)
 
@@ -1630,6 +1755,7 @@ def class_slot_needs(engine):
 def teacher_stats(sched, windows=None, k=3.0):
     """Main KPIs per teacher (remediation included in hours).
     Priority = 1 (least loaded) … k (most loaded) – same formula as the solver's fairness priority."""
+    _G = timegrid.CURRENT
     if sched is None or sched.empty:
         return pd.DataFrame()
     windows = windows or {}
@@ -1641,7 +1767,7 @@ def teacher_stats(sched, windows=None, k=3.0):
         finishes = []
         win = {tuple(c) for c in windows.get(tch, [])}
         for d, gd in g.groupby("Day"):
-            for half in (range(0, 4), range(4, 7)):
+            for half in (_G.morning, _G.afternoon):
                 act = sorted(s for s in gd["Slot"] if s in half)
                 if act:
                     gaps += (act[-1] - act[0] + 1) - len(act)
@@ -1650,8 +1776,8 @@ def teacher_stats(sched, windows=None, k=3.0):
         rem = g["Subject"] == "REMEDIAL"
         own = g[~rem]
         rows.append({"Teacher": tch, "Hours": len(g), "Remedial": int(rem.sum()), "Days": g["Day"].nunique(),
-                     "Gaps": int(gaps), "Single_hour": int(singles), "Afternoon_h": int((g["Slot"] >= 4).sum()),
-                     "Slot7": int((g["Slot"] == 6).sum()), "Avg_finish": round(sum(finishes) / len(finishes), 1),
+                     "Gaps": int(gaps), "Single_hour": int(singles), "Afternoon_h": int((g["Slot"] > _G.lunch).sum()),
+                     "Slot7": int((g["Slot"] == _G.last).sum()), "Avg_finish": round(sum(finishes) / len(finishes), 1),
                      "In_window": int(sum((int(d), int(s)) in win for d, s in zip(own["Day"], own["Slot"]))),
                      "Classes": ", ".join(sorted(set(own["Class"].astype(str)), key=lambda c: (len(c), c))),
                      "Subjects": sorted({str(s).split("+")[0].split("_")[0] for s in own["Subject"]})})
@@ -1665,6 +1791,7 @@ def teacher_stats(sched, windows=None, k=3.0):
 
 def class_stats(sched):
     """Main KPIs per class: own hours, remediation hours shown in its table, gaps, 7th slots, empty mornings."""
+    _G = timegrid.CURRENT
     if sched is None or sched.empty:
         return pd.DataFrame()
     s = sched.copy()
@@ -1675,13 +1802,13 @@ def class_stats(sched):
     for c, g in own.groupby("Class"):
         gaps = 0
         for d, gd in g.groupby("Day"):
-            for half in (range(0, 4), range(4, 7)):
+            for half in (_G.morning, _G.afternoon):
                 act = sorted(x for x in set(gd["Slot"]) if x in half)
                 if act: gaps += (act[-1] - act[0] + 1) - len(act)
         used = set(zip(g["Day"], g["Slot"]))
         rem_cells = {(r.Day, r.Slot) for r in rem.itertuples() if c in [z.strip() for z in str(r.Classes).split(",")]}
         rows.append({"Class": c, "Hours": len(used), "Remedial": len(rem_cells),
-                     "Gaps": int(gaps), "Slot7": int(sum(1 for d_, s_ in used if s_ == 6)),
-                     "Empty_morning": int(sum(1 for d in range(5) for s_ in range(4) if (d, s_) not in used)),
-                     "Afternoon_h": int(sum(1 for _, s_ in used if s_ >= 4))})
+                     "Gaps": int(gaps), "Slot7": int(sum(1 for d_, s_ in used if s_ == _G.last)),
+                     "Empty_morning": int(sum(1 for d in range(_G.days) for s_ in _G.morning if (d, s_) not in used)),
+                     "Afternoon_h": int(sum(1 for _, s_ in used if s_ > _G.lunch))})
     return pd.DataFrame(rows).set_index("Class")

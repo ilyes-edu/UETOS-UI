@@ -94,6 +94,16 @@ i18n.S.update({
                       "يُستعمل إعداد المؤسسة المُنشأ بالدليل ({c} فوجًا، {p} أستاذًا)."),
     "wz_not_done": ("The setup guide is not finished yet.", "لم يكتمل دليل الإعداد بعد."),
     # step 1
+    "wz_struct": ("🌳 Years and tracks (school structure)", "🌳 السنوات والشعب (هيكل المؤسسة)"),
+    "wz_struct_help": ("Years: free number and names. Tracks: optional; list the years where each track exists (IDs separated "
+                       "by ';'). A year with tracks gives one level per track (e.g. 2AS-SCI); classes = level × number.",
+                       "السنوات: عدد وأسماء حرة. الشعب: اختيارية؛ اذكر السنوات التي توجد فيها كل شعبة (رموز يفصل بينها ';'). "
+                       "السنة ذات الشعب تعطي مستوى لكل شعبة (مثل 2AS-SCI)؛ الأفواج = المستوى × العدد."),
+    "wz_years": ("Years", "السنوات"), "wz_tracks": ("Tracks", "الشعب"),
+    "wz_track_years": ("Years (;)", "السنوات (;)"), "wz_struct_apply": ("✅ Apply the structure", "✅ تطبيق الهيكل"),
+    "wz_cur_edit": ("✏️ Edit the curriculum (hours per level and subject)", "✏️ تعديل المنهاج (الساعات حسب المستوى والمادة)"),
+    "wz_cur_use": ("✅ Use this curriculum", "✅ اعتماد هذا المنهاج"),
+    "wz_cur_edited": ("edited curriculum", "منهاج معدَّل"),
     "wz_q_levels": ("How many classes do you have in each level?", "كم عدد الأفواج في كل مستوى؟"),
     "wz_level": ("Level {l}", "المستوى {l}"),
     "wz_total_classes": ("Total: {n} classes", "المجموع: {n} فوجًا"),
@@ -195,7 +205,37 @@ i18n.S.update({
 def _ans(ss):
     if "wz" not in ss:
         ss["wz"] = json.loads(json.dumps(DEFAULTS))
-    return ss["wz"]
+    a = ss["wz"]
+    if not a.get("years"):                           # years come from the server preset (free to edit)
+        import presets as _pr
+        a["years"] = [{"id": str(y["id"]), "en": y.get("name", {}).get("en", y["id"]), "ar": y.get("name", {}).get("ar", y["id"])}
+                      for y in sorted(_pr.load().get("years", []), key=lambda y: y.get("order", 0))]
+    a.setdefault("tracks", [])
+    return a
+
+
+def levels_of(a):
+    """[(level key, year id, track id or '')]: a year without track is one level; with tracks, one level per track."""
+    out = []
+    for y in a.get("years") or [{"id": l} for l in LEVELS]:
+        trs = [tr for tr in a.get("tracks", []) if y["id"] in tr.get("years", [])]
+        out += [(f"{y['id']}-{tr['id']}", y["id"], tr["id"]) for tr in trs] or [(y["id"], y["id"], "")]
+    return out
+
+
+def level_keys(a):
+    return [k for k, _, _ in levels_of(a)]
+
+
+def level_label(a, key):
+    """Display name of a level key in the current language."""
+    lang = "ar" if i18n.is_ar() else "en"
+    for k, y, tr in levels_of(a):
+        if k == key:
+            yn = next((x.get(lang) or x["id"] for x in a.get("years", []) if x["id"] == y), y)
+            tn = next((x.get(lang) or x["id"] for x in a.get("tracks", []) if x["id"] == tr), "")
+            return f"{yn} {tn}".strip()
+    return key
 
 
 # ------------------------------------------------------------------ pure logic
@@ -217,16 +257,24 @@ def _file_df(a, k):
 
 def build_frames(a):
     """answers (+ loaded files) -> dict of data frames in the application's formats (without teachers)."""
+    LV = level_keys(a)
     classes = pd.DataFrame([{"Class_ID": f"{l}{i}", "Level": l}
-                            for l in LEVELS for i in range(1, int(a["levels"].get(l, 0)) + 1)])
+                            for l in LV for i in range(1, int(a["levels"].get(l, 0)) + 1)], columns=["Class_ID", "Level"])
     if file_of(a, "classes"):
         classes = _file_df(a, "classes")[["Class_ID", "Level"]].astype(str)
     active = list(dict.fromkeys(classes["Level"])) if file_of(a, "classes") else \
-        [l for l in LEVELS if int(a["levels"].get(l, 0)) > 0]
-    base = pd.read_csv(BASE_CURRICULUM)
+        [l for l in LV if int(a["levels"].get(l, 0)) > 0]
+    import presets as _pr
+    base = _pr.curriculum_df()
+    _add = []                                           # track levels start from their year's curriculum
+    for k, y, tr in levels_of(a):
+        if tr and k not in set(base["Level"]):
+            _add.append(base[base["Level"] == y].assign(Level=k))
+    if _add:
+        base = pd.concat([base] + _add, ignore_index=True)
     base = base[~base["Subject_Code"].isin(["MUSIC", "ART", "AMAZIGH", "INFO"])]
     extra = []
-    for l in LEVELS:
+    for l in LV:
         if a["arts"] in ("music", "both"):
             extra.append((l, "MUSIC", a["music_h"], 0, 0, 0, "classroom"))
         if a["arts"] in ("art", "both"):
@@ -273,7 +321,7 @@ def build_frames(a):
     if a["it_mode"] == "half_lang" and info_lv:
         rules.append(("R_FOUJ_04", info_lv, "INFO", "TP", 2, "FRENCH;ENGLISH", "TD", "1;1", 2,
                       "2h per week: group A Informatics 2h / group B French 1h then English 1h - groups swap next week"))
-    no_info = lv([l for l in LEVELS if l not in a["info_levels"]])
+    no_info = lv([l for l in LV if l not in a["info_levels"]])
     if a["g_lang34"] and no_info:
         rules.append(("R_FOUJ_05", no_info, "FRENCH", "TD", 1, "ENGLISH", "TD", 1, 2,
                       "1h per week: group A French / group B English - groups swap next week"))
@@ -440,10 +488,9 @@ def _bulk_panel(st, ss, a, frames):
                    + ("" if file_of(a, "subjects") else "  ·  📘 " + curr.label()))
         import os as _os
         sample = _os.path.join(_os.path.dirname(BASE_CURRICULUM))
-        tpl = {k: pd.read_csv(_os.path.join(sample, f)) for k, f in
-               [("classes", "classes.csv"), ("subjects", "curriculum.csv"), ("rooms", "rooms.csv"),
-                ("rules", "split_rules.csv"), ("inspections", "pedagogical_windows.csv")]
-               if _os.path.exists(_os.path.join(sample, f))}
+        import presets as _pr
+        tpl = {"classes": pd.read_csv(_os.path.join(sample, "classes.csv"))}
+        tpl.update(_pr.default_frames())
         c1, c2, _ = st.columns([1, 1, 2])
         c1.download_button(t("tpl_csv"), dl.to_zip(tpl), f"{t('tpl_name')}_csv.zip", "application/zip", width="stretch",
                            key="wz_tpl_csv")
@@ -707,12 +754,31 @@ def _step_levels(st, a):
         cl = build_frames(a)["classes"]
         st.caption(" · ".join(f"{l}: {n}" for l, n in cl.groupby("Level").size().items()))
         return
+    with st.expander(t("wz_struct"), expanded=False):
+        st.caption(t("wz_struct_help"))
+        c1, c2 = st.columns(2)
+        c1.markdown("**" + t("wz_years") + "**")
+        yd = c1.data_editor(pd.DataFrame(a["years"], columns=["id", "en", "ar"]), num_rows="dynamic", width="stretch",
+                            key="wz_years_ed", column_config={"id": "ID", "en": "English", "ar": "العربية"})
+        c2.markdown("**" + t("wz_tracks") + "**")
+        td = c2.data_editor(pd.DataFrame([{**x, "years": ";".join(x.get("years", []))} for x in a["tracks"]],
+                                         columns=["id", "en", "ar", "years"]), num_rows="dynamic", width="stretch",
+                            key="wz_tracks_ed", column_config={"id": "ID", "en": "English", "ar": "العربية",
+                                                               "years": st.column_config.TextColumn(t("wz_track_years"))})
+        if st.button(t("wz_struct_apply"), key="wz_struct_ok", type="primary"):
+            a["years"] = [{"id": str(r["id"]).strip(), "en": str(r.get("en") or r["id"]), "ar": str(r.get("ar") or r["id"])}
+                          for r in yd.fillna("").to_dict("records") if str(r["id"]).strip()]
+            a["tracks"] = [{"id": str(r["id"]).strip(), "en": str(r.get("en") or r["id"]), "ar": str(r.get("ar") or r["id"]),
+                            "years": [x.strip() for x in str(r.get("years", "")).replace(",", ";").split(";") if x.strip()]}
+                           for r in td.fillna("").to_dict("records") if str(r["id"]).strip()]
+            st.rerun()
     st.subheader(t("wz_q_levels"))
-    cols = st.columns(4)
-    for c, l in zip(cols, LEVELS):
-        a["levels"][l] = int(c.number_input(t("wz_level", l=(l[0] + "م") if i18n.is_ar() else l), 0, 15,
-                                            int(a["levels"].get(l, 0)), key=f"wz_lv_{l}"))
-    st.info(t("wz_total_classes", n=sum(a["levels"].values())))
+    keys = level_keys(a)
+    cols = st.columns(min(4, max(1, len(keys))))
+    for i, l in enumerate(keys):
+        a["levels"][l] = int(cols[i % len(cols)].number_input(t("wz_level", l=level_label(a, l)), 0, 30,
+                                                              int(a["levels"].get(l, 0)), key=f"wz_lv_{l}"))
+    st.info(t("wz_total_classes", n=sum(int(a["levels"].get(l, 0)) for l in keys)))
 
 
 def _step_subjects(st, a, frames):
@@ -732,9 +798,15 @@ def _step_subjects(st, a, frames):
         cur["Total"] = cur[["Hrs_Cours", "Hrs_TD", "Hrs_TP", "Hrs_Practice"]].sum(axis=1)
         piv = cur.pivot_table(index="Subject_Code", columns="Level", values="Total", aggfunc="sum").fillna(0).astype(int)
         piv.index = [i18n.subj(s) for s in piv.index]
-        piv.columns = [(c[0] + "م") if i18n.is_ar() else c for c in piv.columns]
+        piv.columns = [level_label(a, c) for c in piv.columns]
         piv.loc["Σ"] = piv.sum()
         st.dataframe(piv, width="stretch")
+    with st.expander(t("wz_cur_edit")):
+        ce = st.data_editor(frames["subjects"], num_rows="dynamic", width="stretch", key="wz_cur_ed")
+        if st.button(t("wz_cur_use"), key="wz_cur_use", type="primary"):
+            a["curriculum"] = json.loads(ce.to_json(orient="records", force_ascii=False))
+            a["curriculum_name"] = t("wz_cur_edited")
+            st.rerun()
 
 
 def _optional_subjects(st, a):
@@ -766,7 +838,9 @@ def _rooms_questions(st, a):
 def _it_questions(st, a):
     st.subheader(t("wz_q_it"))
     c1, c2, c3 = st.columns(3)
-    a["info_levels"] = c1.multiselect(t("wz_info_levels"), LEVELS, [l for l in a["info_levels"] if l in LEVELS], key="wz_infol")
+    _K = level_keys(a)
+    a["info_levels"] = c1.multiselect(t("wz_info_levels"), _K, [l for l in a["info_levels"] if l in _K], key="wz_infol",
+                                      format_func=lambda k: level_label(a, k))
     if a["info_levels"]:
         a["it_rooms"] = int(c2.number_input(t("wz_it_rooms"), 1, 10, int(a["it_rooms"]), key="wz_itr"))
         a["it_mode"] = c3.radio(t("wz_it_mode"), ["full", "half_lang"], ["full", "half_lang"].index(a["it_mode"]),
@@ -783,7 +857,7 @@ def _step_grouping(st, a, frames):
     st.subheader(t("wz_q_grouping"))
     a["g_armath"] = st.checkbox(t("wz_g_armath"), a["g_armath"], key="wz_gam", help=t("wz_g_armath_h"))
     a["g_physsci"] = st.checkbox(t("wz_g_physsci"), a["g_physsci"], key="wz_gps")
-    no_info = [l for l in LEVELS if l not in a["info_levels"] and a["levels"].get(l, 0)]
+    no_info = [level_label(a, l) for l in level_keys(a) if l not in a["info_levels"] and a["levels"].get(l, 0)]
     if no_info:
         a["g_lang34"] = st.checkbox(t("wz_g_lang34") + f" ({', '.join(no_info)})", a["g_lang34"], key="wz_gl")
     if a["info_levels"] and a["it_mode"] == "half_lang":

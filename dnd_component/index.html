@@ -88,7 +88,9 @@ const PALETTE = ["#4e79a7","#6b6ecf","#8c6d31","#7b4173","#3182bd","#636363","#5
 let ARGS = null, dragId = null, selId = null, lastNonce = 0, tgtKey = null;
 
 function send(type, extra) { window.parent.postMessage(Object.assign({isStreamlitMessage: true, type}, extra), "*"); }
-const rowOf = s => s < 4 ? s + 2 : s + 3;      // row 1 = header, row 6 = lunch strip
+const LB = () => (ARGS && Number.isFinite(Number(ARGS.lunch))) ? Number(ARGS.lunch) : 3;   // last morning period
+const isOff = (d, s) => ((ARGS && ARGS.off) || []).includes(`${d},${s}`);
+const rowOf = s => s <= LB() ? s + 2 : s + 3;      // row 1 = header, then morning, lunch strip, afternoon
 function color(key) { let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; }
 
 function render() {
@@ -96,11 +98,11 @@ function render() {
   const add = (el, r, c, span) => { el.style.gridRow = span ? `${r} / span ${span}` : r; el.style.gridColumn = c; g.appendChild(el); return el; };
   add(Object.assign(document.createElement("div"), {className: "hdr", textContent: ARGS.title}), 1, 1);
   DAYS.forEach((d, i) => add(Object.assign(document.createElement("div"), {className: "hdr", textContent: d}), 1, i + 2));
-  const lunch = Object.assign(document.createElement("div"), {className: "lunch", textContent: T.lunch}); lunch.style.gridRow = 6; g.appendChild(lunch);
-  for (let s = 0; s < 7; s++) {
+  const lunch = Object.assign(document.createElement("div"), {className: "lunch", textContent: T.lunch}); lunch.style.gridRow = LB() + 3; g.appendChild(lunch);
+  for (let s = 0; s < ARGS.slots.length; s++) {
     add(Object.assign(document.createElement("div"), {className: "slotlbl", textContent: ARGS.slots[s]}), rowOf(s), 1);
-    for (let d = 0; d < 5; d++) {
-      const c = add(Object.assign(document.createElement("div"), {className: "cell" + (d === 2 && s >= 4 ? " off" : "")}), rowOf(s), d + 2);
+    for (let d = 0; d < DAYS.length; d++) {
+      const c = add(Object.assign(document.createElement("div"), {className: "cell" + (isOff(d, s) ? " off" : "")}), rowOf(s), d + 2);
       c.dataset.key = `${d},${s}`;
       if ((ARGS.windows || []).includes(c.dataset.key)) { c.classList.add("win"); c.dataset.win = "🚫 " + T.win; c.title = T.win_msg; }
       c.addEventListener("dragover", e => { if (!dragId) return; e.preventDefault(); hover(c); });
@@ -109,7 +111,7 @@ function render() {
       c.addEventListener("click", () => {
         if (ARGS.readonly) return;
         if (selId) { drop(selId, c.dataset.key); return; }
-        if (d === 2 && s >= 4) return;
+        if (isOff(d, s)) return;
         if (c.classList.contains("win")) { tgtKey = null; target(); setMsg(`<b>${DAYS[d]} – ${ARGS.slots[s]}</b>: 🚫 ${T.win_msg}`); return; }
         tgtKey = (tgtKey === c.dataset.key) ? null : c.dataset.key; target(); });
     }

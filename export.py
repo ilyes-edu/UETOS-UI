@@ -2,6 +2,7 @@
 
 Sections: full view of all classes, full view of all teachers, one timetable per class, one per teacher."""
 import io
+import timegrid
 import os
 import pandas as pd
 
@@ -11,7 +12,6 @@ from i18n import t
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DAYS, SLOTS = 5, 7
-OFF = {(2, s) for s in range(4, 7)}          # Tuesday afternoon
 
 
 # ------------------------------------------------------------------ data
@@ -154,7 +154,7 @@ def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teac
                     if (d, s) in cells:
                         ti, sub, subj = cells[(d, s)]
                         cl.value = f"{ti}\n{sub}"; cl.fill = fill(subj)
-                    elif (d, s) in OFF:
+                    elif timegrid.CURRENT.is_off(d, s):
                         cl.fill = off_fill
             ws.row_dimensions[r].height = 30
         ws.column_dimensions["A"].width = 14; ws.column_dimensions["B"].width = 6
@@ -178,7 +178,7 @@ def to_xlsx(df, title="", sections=("full_class", "full_teacher", "class", "teac
                 if (d, s) in cells:
                     ti, sub, subj = cells[(d, s)]
                     cl.value = f"{ti}\n{sub}"; cl.fill = fill(subj); cl.font = Font(size=10)
-                elif (d, s) in OFF:
+                elif timegrid.CURRENT.is_off(d, s):
                     cl.fill = off_fill
         ws.column_dimensions["A"].width = 18
         for d in range(DAYS):
@@ -280,7 +280,7 @@ def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teach
                             styles.append(("BACKGROUND", (col, ri + 2), (col, ri + 2), rc.HexColor(colors.light(subj))))
                         else:
                             line.append("")
-                            if (d, s) in OFF:
+                            if timegrid.CURRENT.is_off(d, s):
                                 col = len(line) - 1 + (0 if rtl else 2)
                                 styles.append(("BACKGROUND", (col, ri + 2), (col, ri + 2), rc.HexColor("#ececec")))
                 lbl = [P(i18n.cls(key) if is_class is True else key, 6.5, True), P(str(_hours(cells)), 6)]
@@ -320,7 +320,7 @@ def to_pdf(df, title="", sections=("full_class", "full_teacher", "class", "teach
                     styles.append(("BACKGROUND", (col, s + 1), (col, s + 1), rc.HexColor(colors.light(subj))))
                 else:
                     line.append("")
-                    if (d, s) in OFF:
+                    if timegrid.CURRENT.is_off(d, s):
                         col = len(line) - 1 + (0 if rtl else 1)
                         styles.append(("BACKGROUND", (col, s + 1), (col, s + 1), rc.HexColor("#ececec")))
             lbl = P(i18n.slot_label(s), 8, True)

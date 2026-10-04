@@ -2,6 +2,7 @@
 Run:  streamlit run app.py
 """
 import os
+import timegrid
 import re
 import json
 import time
@@ -43,6 +44,12 @@ FILES = {
     "rules": "split_rules.csv", "grid": "school_grid.csv",
 }
 
+# ------------------------------------------------------------------ server preset (school-type defaults)
+import presets
+PRESET = presets.load(st.session_state.get("preset_id", presets.DEFAULT_ID))
+timegrid.set_current(timegrid.from_config(presets.apply_to_config(SchedulerConfig(), PRESET)))
+i18n.DAY_NAMES = presets.day_names(PRESET)
+
 # ------------------------------------------------------------------ language (must come first)
 if "lang" not in st.session_state:
     st.session_state["lang"] = "ar"
@@ -59,7 +66,7 @@ if lang_choice != st.session_state["lang"]:
 # ------------------------------------------------------------------ navigation (one page runs per rerun)
 ss = st.session_state
 PAGES = ["data", "plan", "run", "tt", "cmp", "guide"]
-_KEEP = {"src", "use_remedial", "max_time", "version_name", "allow_gaps", "allow_twice", "enforce_2h", "max_2h",
+_KEEP = {"src", "preset_id", "use_remedial", "max_time", "version_name", "allow_gaps", "allow_twice", "enforce_2h", "max_2h",
          "strict_grid", "morning_hard", "windows_hard", "lab_fallback", "prio", "workers"}
 for _k in list(ss.keys()):          # keep settings alive while their page is not displayed
     if _k in _KEEP or str(_k).startswith("w_"):
@@ -215,7 +222,12 @@ def detect(df, fname):
 _SRC_FMT = lambda x: {"wizard": t("src_wizard"), "upload": t("src_upload"), "sample": t("src_sample")}[x]
 if PAGE == "data":
     st.subheader(t("pg_data"))
-    src = st.radio(t("source"), ["wizard", "upload", "sample"], format_func=_SRC_FMT, horizontal=True, key="src")
+    _pc1, _pc2 = st.columns([3, 2])
+    with _pc1:
+        src = st.radio(t("source"), ["wizard", "upload", "sample"], format_func=_SRC_FMT, horizontal=True, key="src")
+    _pav = presets.available()
+    _pc2.selectbox(t("preset"), list(_pav), key="preset_id", disabled=len(_pav) < 2,
+                   format_func=lambda k: _pav[k].get(i18n.LANG, _pav[k].get("en", k)) if isinstance(_pav[k], dict) else str(_pav[k]))
 else:
     src = ss.get("src", "wizard")
 data_frames, report = {}, []
@@ -252,13 +264,94 @@ if src in ("wizard", "upload"):          # Upload = the same guide, filled from 
         data_frames["grid"] = None
 else:
     # default example = the school files in sample_data/ (assignment.csv = اسناد)
+    # school-specific sample files (classes, staff, اسناد) + the PRESET's default tables (curriculum,
+    # unavailable times, rooms, session templates) – nothing hard-coded, everything editable/exportable
     data_frames = {k: pd.read_csv(os.path.join(SAMPLE, f)) for k, f in FILES.items()
                    if os.path.exists(os.path.join(SAMPLE, f))}
+    data_frames.update(presets.default_frames(PRESET))
     data_frames.setdefault("grid", None)
 
 # ---- subject-code mapping chosen by the user (school codes -> curriculum codes)
 subj_map = st.session_state.get("subj_map", {})
 data_frames = sm.apply_to_frames(data_frames, subj_map)
+
+# ---- manager's edits of the school tables (per workspace and data source), applied on top of the source data
+import tables
+TBL_EDITED = set()
+for _k in [k for k, v in data_frames.items() if v is not None]:
+    _ov = tables.load(DB, WS, f"tbl_{src}_{_k}")
+    if _ov is not None:
+        data_frames[_k] = tables.coerce_like(_ov, data_frames[_k]); TBL_EDITED.add(_k)
+
+# ---- teacher availability (per workspace, independent of the data source; editable / importable / exportable)
+AV_COLS = ["Teacher_ID", "Day", "Periods", "Kind"]
+
+
+def load_avail():
+    _d = tables.load(DB, WS, "availability")
+    return _d if _d is not None else pd.DataFrame(columns=AV_COLS)
+
+
+def avail_to_cfg(df, cfg):
+    """Day 1..n, Periods "all" or "1;2;5" (1-based), Kind unavailable|avoid  ->  cfg.teacher_unavailable / avoid."""
+    un, av = {}, {}
+    for r in (df if df is not None else pd.DataFrame(columns=AV_COLS)).itertuples():
+        try:
+            d = int(float(r.Day)) - 1
+        except (TypeError, ValueError):
+            continue
+        ps = str(r.Periods).strip().lower()
+        per = range(cfg.slots) if ps in ("", "all", "*", "الكل") else \
+            [int(float(x)) - 1 for x in ps.replace(",", ";").split(";") if x.strip()]
+        tgt = av if str(r.Kind).strip().lower() in ("avoid", "تجنب") else un
+        tgt.setdefault(str(r.Teacher_ID), []).extend([d, p_] for p_ in per if 0 <= p_ < cfg.slots)
+    cfg.teacher_unavailable, cfg.teacher_avoid = un, av
+    return cfg
+
+
+data_frames["availability"] = load_avail()
+
+
+def load_joint():
+    _d = tables.load(DB, WS, "joint_sessions")
+    return _d if _d is not None else presets.joint_df(PRESET)          # server defaults (none in the middle-school preset)
+
+
+data_frames["joint_sessions"] = load_joint()
+
+# ---- per-level week (overrides the preset): Level, Periods (count), Closed "day:half;..." e.g. "3:afternoon;5:all"
+LW_COLS = ["Level", "Periods", "Closed"]
+
+
+def load_level_week():
+    _d = tables.load(DB, WS, "level_week")
+    return _d if _d is not None else presets.level_week_df(PRESET, data_frames.get("classes"))
+
+
+def level_week_to_cfg(df, cfg):
+    lp = dict(getattr(cfg, "level_profiles", {}) or {})
+    for r in ([] if df is None else df.fillna("").to_dict("records")):
+        lv = str(r.get("Level", "")).strip()
+        if not lv:
+            continue
+        try:
+            n = int(float(r.get("Periods") or cfg.slots))
+        except ValueError:
+            n = cfg.slots
+        closed = []
+        for it in str(r.get("Closed", "")).replace(",", ";").split(";"):
+            if ":" in it:
+                d_, h_ = it.split(":", 1)
+                try:
+                    closed.append([int(d_) - 1, h_.strip().lower() or "all"])
+                except ValueError:
+                    pass
+        lp[lv] = {"slots": max(1, min(n, cfg.slots)), "closed": closed}
+    cfg.level_profiles = lp
+    return cfg
+
+
+data_frames["level_week"] = load_level_week()
 
 # ---- import a school assignment grid -> becomes the step-1 plan
 mx_file = None                           # school assignment files are loaded through the guide (all modes)
@@ -492,9 +585,9 @@ def version_label(v):
 def grid_for(df, key_col, key, label_col):
     g = df[df[key_col] == key].pivot_table(index="Slot", columns="Day", values=label_col,
                                          aggfunc=lambda x: " | ".join(x))
-    g = g.reindex(index=range(7), columns=range(5)).fillna("---")
+    g = g.reindex(index=range(timegrid.CURRENT.slots), columns=range(timegrid.CURRENT.days)).fillna("---")
     g.columns = [i18n.day(c) for c in g.columns]
-    g.index = [i18n.slot_label(i) for i in range(7)]
+    g.index = [i18n.slot_label(i) for i in range(timegrid.CURRENT.slots)]
     if i18n.is_ar():
         g = g[g.columns[::-1]]           # Sunday on the right, like a printed Arabic timetable
     return g
@@ -595,16 +688,44 @@ if PAGE == "data":
     if data_frames.get("rules") is not None:
         st.subheader(t("sr_title"))
         render_split_rules(data_frames, "data")
-    st.caption(t("raw_note"))
+    with st.expander(t("av_title", n=len(data_frames["availability"]))):
+        st.caption(t("av_help", days=" · ".join(f"{i + 1} = {i18n.day(i)}" for i in range(timegrid.CURRENT.days))))
+        _tl = sorted(data_frames["teachers"]["Teacher_ID"].astype(str)) if data_frames.get("teachers") is not None else []
+        tables.editor(st, DB, WS, "availability", data_frames["availability"], "av", cols=AV_COLS,
+                      filename="teacher_availability.csv",
+                      column_config={"Teacher_ID": st.column_config.SelectboxColumn(t("teacher"), options=_tl),
+                                     "Day": st.column_config.SelectboxColumn(t("av_day"), options=[str(i + 1) for i in range(timegrid.CURRENT.days)]),
+                                     "Periods": st.column_config.TextColumn(t("av_periods")),
+                                     "Kind": st.column_config.SelectboxColumn(t("av_kind"), options=["unavailable", "avoid"])})
+    with st.expander(t("js_title", n=len(data_frames["joint_sessions"]))):
+        st.caption(t("js_help"))
+        tables.editor(st, DB, WS, "joint_sessions", data_frames["joint_sessions"], "js", cols=presets.JOINT_COLS,
+                      column_config={"Classes": st.column_config.TextColumn(t("js_classes")),
+                                     "Subjects": st.column_config.TextColumn(t("js_subjects")),
+                                     "Hours": st.column_config.TextColumn(t("js_hours")),
+                                     "Block": st.column_config.SelectboxColumn(t("js_block"), options=["1", "2"])})
+    with st.expander(t("lw_title", n=len(data_frames["level_week"]))):
+        st.caption(t("lw_help", days=" · ".join(f"{i + 1} = {i18n.day(i)}" for i in range(timegrid.CURRENT.days)),
+                     p=timegrid.CURRENT.slots))
+        _lv = sorted(data_frames["classes"]["Level"].astype(str).unique()) if data_frames.get("classes") is not None else []
+        tables.editor(st, DB, WS, "level_week", data_frames["level_week"], "lw", cols=LW_COLS,
+                      column_config={"Level": st.column_config.SelectboxColumn(t("lw_level"), options=_lv),
+                                     "Periods": st.column_config.TextColumn(t("lw_periods")),
+                                     "Closed": st.column_config.TextColumn(t("lw_closed"))})
+    st.caption(t("tb_note"))
     for k, df in data_frames.items():
-        if df is None:
+        if df is None or k in ("availability", "joint_sessions", "level_week"):
             continue
-        with st.expander(t("rows", k=t("ds_" + k), n=len(df))):
-            st.dataframe(dl.to_local(df) if k != "grid" else df, width="stretch", hide_index=True)
+        with st.expander(t("rows", k=t("ds_" + k), n=len(df)) + ("  ✏️" if k in TBL_EDITED else "")):
+            tables.editor(st, DB, WS, f"tbl_{src}_{k}", df, "tb_" + k, filename=FILES.get(k, k + ".csv"),
+                          resettable=True, edited=k in TBL_EDITED)
 
 def make_cfg():
     """Solver settings from the sidebar (same for a full solve and for a repair)."""
-    cfg = SchedulerConfig()
+    cfg = presets.apply_to_config(SchedulerConfig(), PRESET)
+    avail_to_cfg(data_frames.get("availability"), cfg)
+    presets.joint_to_cfg(data_frames.get("joint_sessions"), cfg)
+    level_week_to_cfg(data_frames.get("level_week"), cfg)
     cfg.allow_student_gaps = allow_gaps
     cfg.allow_same_subject_twice_per_day = allow_twice
     cfg.enforce_max_2h_courses_per_day = enforce_2h
@@ -885,6 +1006,15 @@ if RUN:
                     eng.remedial = dict(plan.get("remedial") or {})
                 eng.build_model()
                 t_build = time.time() - t0
+            if getattr(eng, "joint_warnings", None):
+                st.error("\n\n".join(t("js_warn", id=w[0], msg=w[1]) for w in eng.joint_warnings))
+                st.stop()
+            _cap = eng.capacity_issues()
+            if _cap:
+                st.error(t("cap_title") + "\n\n" + "\n".join(
+                    t("cap_class" if x["kind"] == "class" else "cap_teacher",
+                      w=i18n.cls(x["who"]) if x["kind"] == "class" else x["who"], n=x["need"], h=x["have"]) for x in _cap))
+                st.stop()
             # solve in a background thread; the page shows a live countdown meanwhile
             import threading
             box = {"phase": 1, "sched": None, "err": None}
@@ -1159,7 +1289,7 @@ def entity_table_html(ed_, kind, key, pv, lid):
     """Static timetable of ONE class/teacher in its CURRENT state; lessons the pending change would touch are outlined."""
     import html as _h
     esc = lambda x: _h.escape(str(x))
-    mine = [l for l in ed_.L.values() if ((l["class"] == key or key in l.get("blocks_classes", []))
+    mine = [l for l in ed_.L.values() if ((l["class"] == key or key in l.get("blocks_classes", []) or key in l.get("also_classes", []))
                                           if kind == "class" else key in l["teachers"])]
     cell, incoming = {}, {}
     for l in mine:
@@ -1173,7 +1303,7 @@ def entity_table_html(ed_, kind, key, pv, lid):
         l = ed_.L[i]
         if l in mine:
             continue
-        if (kind == "class" and (l["class"] == key or key in l.get("blocks_classes", []))) or \
+        if (kind == "class" and (l["class"] == key or key in l.get("blocks_classes", []) or key in l.get("also_classes", []))) or \
            (kind == "teacher" and key in l["teachers"]):
             for k in range(l["duration"]):
                 incoming.setdefault((dd, s0 + k), []).append(l)
@@ -1228,7 +1358,7 @@ table.pv tr.pv-lunch td, table.pv tr.pv-lunch th{border-top:3px dashed #c9d6e3}
 
 def single_payload(editor, view, who, free=False, readonly=False, tw=None):
     """Payload of the one-class / one-teacher drag & drop board (also used read-only in View mode)."""
-    mine = [l for l in editor.L.values() if ((l["class"] == who or who in l.get("blocks_classes", []))
+    mine = [l for l in editor.L.values() if ((l["class"] == who or who in l.get("blocks_classes", []) or who in l.get("also_classes", []))
                                              if view == "class" else who in l["teachers"])]
     lessons_payload = []
     for l in mine:
@@ -1258,7 +1388,9 @@ def single_payload(editor, view, who, free=False, readonly=False, tw=None):
         "windows": win_cells,
         "title": i18n.cls(who) if view == "class" else who, "lessons": lessons_payload,
         "status": _st_map, "free": free,
-        "rtl": i18n.is_ar(), "days": i18n.DAYS[i18n.LANG], "slots": [i18n.slot_label(i) for i in range(7)],
+        "rtl": i18n.is_ar(), "days": [i18n.day(d_) for d_ in range(timegrid.CURRENT.days)],
+        "slots": [i18n.slot_label(i) for i in range(timegrid.CURRENT.slots)],
+        "lunch": timegrid.CURRENT.lunch, "off": [f"{d_},{s_}" for d_, s_ in timegrid.CURRENT.off_cells()],
         "i18n": {"free": t("dnd_free"), "swap": t("dnd_swap"), "impossible": t("dnd_impossible"),
                  "current": t("dnd_current"), "hint": t("dnd_hint"), "moving": t("dnd_moving"),
                  "not_allowed": t("dnd_not_allowed"), "applying": t("dnd_applying"), "lunch": t("dnd_lunch"),
@@ -1395,7 +1527,7 @@ def full_payload(lessons, rows_by, sel=None, status=None, locked_fn=None, readon
     for l in lessons:
         rem = bool(l.get("remedial")) or l["subject"] == "REMEDIAL"
         if rows_by == "class":
-            rows = list(l.get("blocks_classes", [])) if rem else [l["class"]]
+            rows = list(l.get("blocks_classes", [])) if rem else [l["class"]] + list(l.get("also_classes", []))
             title = i18n.subj_short(l.get("rem_subject") and "REMEDIAL" or l["subject"])
             sub = i18n.teachers(l["teachers"])
         else:
@@ -1421,8 +1553,10 @@ def full_payload(lessons, rows_by, sel=None, status=None, locked_fn=None, readon
               "sub": t("tot_h", h=hours[k]) + (f" + {remh[k]}" if remh[k] else "")} for k in keys]
     return {"rows": rows_, "lessons": out, "sel": sel, "status": status, "readonly": readonly, "free": free,
             "title": t("class") if rows_by == "class" else t("teacher"),
-            "days": [i18n.day(d_) for d_ in range(5)], "slots": [str(i + 1) for i in range(7)],
-            "off": [f"2,{s_}" for s_ in range(4, 7)], "lunch": 3, "rtl": i18n.is_ar(),
+            "days": [i18n.day(d_) for d_ in range(timegrid.CURRENT.days)],
+            "slots": [str(i + 1) for i in range(timegrid.CURRENT.slots)],
+            "off": [f"{d_},{s_}" for d_, s_ in timegrid.CURRENT.off_cells()], "lunch": timegrid.CURRENT.lunch,
+            "rtl": i18n.is_ar(),
             "i18n": {"free": t("dnd_free"), "swap": t("dnd_swap"), "impossible": t("dnd_impossible"),
                      "current": t("dnd_current"), "hint": t("full_hint"), "moving": t("dnd_moving"),
                      "not_allowed": t("dnd_not_allowed"), "applying": t("dnd_applying"), "loading": t("full_loading"),

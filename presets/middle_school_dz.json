@@ -1,0 +1,1453 @@
+{
+ "preset_id": "dz_middle_school",
+ "version": 1,
+ "name": {
+  "en": "Algerian middle school (CEM) – default values",
+  "ar": "متوسطة جزائرية – القيم الافتراضية"
+ },
+ "notes": "Server-side defaults loaded at start-up. Every table is editable, exportable and replaceable by an upload. Nothing here is hard-coded in the solver.",
+ "time_profiles": [
+  {
+   "id": "cem_week",
+   "name": {
+    "en": "Middle school week",
+    "ar": "أسبوع المتوسطة"
+   },
+   "days": [
+    {
+     "id": 0,
+     "name": {
+      "en": "Sunday",
+      "ar": "الأحد"
+     }
+    },
+    {
+     "id": 1,
+     "name": {
+      "en": "Monday",
+      "ar": "الإثنين"
+     }
+    },
+    {
+     "id": 2,
+     "name": {
+      "en": "Tuesday",
+      "ar": "الثلاثاء"
+     }
+    },
+    {
+     "id": 3,
+     "name": {
+      "en": "Wednesday",
+      "ar": "الأربعاء"
+     }
+    },
+    {
+     "id": 4,
+     "name": {
+      "en": "Thursday",
+      "ar": "الخميس"
+     }
+    }
+   ],
+   "periods": [
+    {
+     "id": 0,
+     "label": "1",
+     "start": "08:00",
+     "end": "09:00",
+     "half": "morning"
+    },
+    {
+     "id": 1,
+     "label": "2",
+     "start": "09:00",
+     "end": "10:00",
+     "half": "morning"
+    },
+    {
+     "id": 2,
+     "label": "3",
+     "start": "10:00",
+     "end": "11:00",
+     "half": "morning"
+    },
+    {
+     "id": 3,
+     "label": "4",
+     "start": "11:00",
+     "end": "12:00",
+     "half": "morning"
+    },
+    {
+     "id": 4,
+     "label": "5",
+     "start": "13:00",
+     "end": "14:00",
+     "half": "afternoon"
+    },
+    {
+     "id": 5,
+     "label": "6",
+     "start": "14:00",
+     "end": "15:00",
+     "half": "afternoon"
+    },
+    {
+     "id": 6,
+     "label": "7",
+     "start": "15:00",
+     "end": "16:00",
+     "half": "afternoon"
+    }
+   ],
+   "lunch_after_period": 3,
+   "closed": [
+    {
+     "day": 2,
+     "half": "afternoon",
+     "why": {
+      "en": "Tuesday afternoon off",
+      "ar": "مساء الثلاثاء عطلة"
+     }
+    }
+   ],
+   "week_cycle": [
+    "A",
+    "B"
+   ]
+  }
+ ],
+ "stages": [
+  {
+   "id": "middle",
+   "name": {
+    "en": "Middle school",
+    "ar": "التعليم المتوسط"
+   },
+   "policy": "cem_policy"
+  }
+ ],
+ "years": [
+  {
+   "id": "1AM",
+   "name": {
+    "en": "1AM",
+    "ar": "1 متوسط"
+   },
+   "stage": "middle",
+   "time_profile": "cem_week",
+   "order": 1
+  },
+  {
+   "id": "2AM",
+   "name": {
+    "en": "2AM",
+    "ar": "2 متوسط"
+   },
+   "stage": "middle",
+   "time_profile": "cem_week",
+   "order": 2
+  },
+  {
+   "id": "3AM",
+   "name": {
+    "en": "3AM",
+    "ar": "3 متوسط"
+   },
+   "stage": "middle",
+   "time_profile": "cem_week",
+   "order": 3
+  },
+  {
+   "id": "4AM",
+   "name": {
+    "en": "4AM",
+    "ar": "4 متوسط"
+   },
+   "stage": "middle",
+   "time_profile": "cem_week",
+   "order": 4
+  }
+ ],
+ "tracks": [],
+ "class_template": {
+  "pattern": "{year}{n}",
+  "default_students": 35,
+  "note": "classes = year (x track) x number; counts are entered by the manager"
+ },
+ "subjects": [
+  {
+   "id": "ARABIC",
+   "name": {
+    "en": "Arabic",
+    "ar": "لغة عربية"
+   },
+   "color": null
+  },
+  {
+   "id": "ISLAMIC",
+   "name": {
+    "en": "Islamic education",
+    "ar": "تربية إسلامية"
+   },
+   "color": null
+  },
+  {
+   "id": "MATH",
+   "name": {
+    "en": "Mathematics",
+    "ar": "رياضيات"
+   },
+   "color": null
+  },
+  {
+   "id": "FRENCH",
+   "name": {
+    "en": "French",
+    "ar": "لغة فرنسية"
+   },
+   "color": null
+  },
+  {
+   "id": "ENGLISH",
+   "name": {
+    "en": "English",
+    "ar": "لغة إنجليزية"
+   },
+   "color": null
+  },
+  {
+   "id": "PHYS",
+   "name": {
+    "en": "Physics",
+    "ar": "علوم فيزيائية"
+   },
+   "color": null
+  },
+  {
+   "id": "SCIENCE",
+   "name": {
+    "en": "Natural science",
+    "ar": "علوم طبيعية"
+   },
+   "color": null
+  },
+  {
+   "id": "HISTGEO",
+   "name": {
+    "en": "History-Geography",
+    "ar": "تاريخ وجغرافيا"
+   },
+   "color": null
+  },
+  {
+   "id": "INFO",
+   "name": {
+    "en": "Computer science",
+    "ar": "إعلام آلي"
+   },
+   "color": null
+  },
+  {
+   "id": "MUSIC",
+   "name": {
+    "en": "Music",
+    "ar": "تربية موسيقية"
+   },
+   "color": null
+  },
+  {
+   "id": "SPORT",
+   "name": {
+    "en": "Physical education",
+    "ar": "تربية بدنية"
+   },
+   "color": null
+  }
+ ],
+ "room_types": [
+  {
+   "id": "classroom",
+   "name": {
+    "en": "Classroom",
+    "ar": "قاعة دراسة"
+   },
+   "count": 20,
+   "capacity_students": 40,
+   "fallback": null
+  },
+  {
+   "id": "lab",
+   "name": {
+    "en": "Laboratory",
+    "ar": "مخبر"
+   },
+   "count": 6,
+   "capacity_students": 40,
+   "fallback": "classroom"
+  },
+  {
+   "id": "computer_lab",
+   "name": {
+    "en": "Computer lab",
+    "ar": "قاعة الإعلام الآلي"
+   },
+   "count": 1,
+   "capacity_students": 40,
+   "fallback": null
+  },
+  {
+   "id": "gym",
+   "name": {
+    "en": "Sports hall / field",
+    "ar": "قاعة / ملعب رياضة"
+   },
+   "count": 2,
+   "capacity_students": 80,
+   "fallback": null
+  }
+ ],
+ "curriculum": [
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "ARABIC",
+   "hours": {
+    "course": 5,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "MATH",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "PHYS",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "INFO",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "computer_lab",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "MUSIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AM",
+   "track": null,
+   "subject": "SPORT",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 0,
+    "practice": 2
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "ARABIC",
+   "hours": {
+    "course": 5,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "MATH",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "PHYS",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "INFO",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "computer_lab",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AM",
+   "track": null,
+   "subject": "SPORT",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 0,
+    "practice": 2
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "ARABIC",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "MATH",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "FRENCH",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "PHYS",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "MUSIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AM",
+   "track": null,
+   "subject": "SPORT",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 0,
+    "practice": 2
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "ARABIC",
+   "hours": {
+    "course": 4,
+    "td": 2,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "MATH",
+   "hours": {
+    "course": 4,
+    "td": 2,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "FRENCH",
+   "hours": {
+    "course": 4,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 1,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "PHYS",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "MUSIC",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "4AM",
+   "track": null,
+   "subject": "SPORT",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 0,
+    "practice": 2
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  }
+ ],
+ "subject_unavailable": [
+  {
+   "subject": "ARABIC",
+   "day": 1,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Monday Morning Arabic Inspection"
+  },
+  {
+   "subject": "ISLAMIC",
+   "day": 1,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Monday Morning Islamic Studies Inspection"
+  },
+  {
+   "subject": "FRENCH",
+   "day": 2,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Tuesday Morning French Inspection"
+  },
+  {
+   "subject": "ENGLISH",
+   "day": 2,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Tuesday Morning English Inspection"
+  },
+  {
+   "subject": "INFO",
+   "day": 2,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Tuesday Morning Informatics Inspection"
+  },
+  {
+   "subject": "PHYS",
+   "day": 3,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Wednesday Morning Physics Inspection"
+  },
+  {
+   "subject": "SCIENCE",
+   "day": 3,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Wednesday Morning Natural Science Inspection"
+  },
+  {
+   "subject": "MATH",
+   "day": 4,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Thursday Morning Mathematics Inspection"
+  },
+  {
+   "subject": "MUSIC",
+   "day": 4,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Thursday Morning Art/Music Inspection"
+  },
+  {
+   "subject": "HISTGEO",
+   "day": 0,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Sunday Morning History-Geography Inspection"
+  },
+  {
+   "subject": "SPORT",
+   "day": 0,
+   "periods": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "applies_to": "teachers",
+   "why": "Sunday Morning Physical Education Inspection"
+  }
+ ],
+ "teacher_defaults": {
+  "max_hours": 20,
+  "statuses": [
+   {
+    "id": "normal",
+    "name": {
+     "en": "Normal",
+     "ar": "عادي"
+    },
+    "hours_reduction": 0
+   },
+   {
+    "id": "mumayaz",
+    "name": {
+     "en": "Distinguished (مميز)",
+     "ar": "مميز"
+    },
+    "hours_reduction": 2
+   }
+  ],
+  "reception_hours": 1,
+  "remedial_hours": 1,
+  "availability": "all",
+  "note": "each teacher may override max_hours, status, unavailable times, fixed years/tracks/classes"
+ },
+ "session_templates": [
+  {
+   "id": "R_FOUJ_01",
+   "kind": "split_class",
+   "years": [
+    "1AM",
+    "2AM",
+    "3AM"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "ARABIC",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "MATH",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "alternate_weeks",
+   "swap": "next_week",
+   "description": "1h per week: group A Arabic / group B Math - groups swap next week"
+  },
+  {
+   "id": "R_FOUJ_02",
+   "kind": "split_class",
+   "years": [
+    "4AM"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "ARABIC",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "MATH",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "weekly",
+   "swap": "after_each_part",
+   "description": "Every week: 2h block - groups swap after the first hour"
+  },
+  {
+   "id": "R_FOUJ_03",
+   "kind": "split_class",
+   "years": [
+    "1AM",
+    "2AM",
+    "3AM",
+    "4AM"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "PHYS",
+       "type": "TP",
+       "hours": 1
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "SCIENCE",
+       "type": "TP",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "weekly",
+   "swap": "after_each_part",
+   "description": "Every week: 2h lab block - groups swap after the first hour"
+  },
+  {
+   "id": "R_FOUJ_04",
+   "kind": "split_class",
+   "years": [
+    "1AM",
+    "2AM"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "INFO",
+       "type": "TP",
+       "hours": 2
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "FRENCH",
+       "type": "TD",
+       "hours": 1
+      },
+      {
+       "subject": "ENGLISH",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "alternate_weeks",
+   "swap": "next_week",
+   "description": "2h per week: group A Informatics 2h / group B French 1h then English 1h - groups swap next week"
+  },
+  {
+   "id": "R_FOUJ_05",
+   "kind": "split_class",
+   "years": [
+    "3AM",
+    "4AM"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "FRENCH",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "ENGLISH",
+       "type": "TD",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "alternate_weeks",
+   "swap": "next_week",
+   "description": "1h per week: group A French / group B English - groups swap next week"
+  },
+  {
+   "id": "REMEDIAL",
+   "kind": "multi_class",
+   "who": "teacher_all_classes",
+   "subjects_pair": [
+    [
+     "ARABIC",
+     "MATH"
+    ]
+   ],
+   "pair_frequency": "alternate_weeks",
+   "duration": 1,
+   "preferred_periods": [
+    5,
+    6
+   ],
+   "ends_day": true,
+   "rooms": 1,
+   "description": "One remedial session per teacher (or Arabic+Math pair, alternating weeks) for all his classes, where all are free; period 6 first, else 7."
+  }
+ ],
+ "policies": [
+  {
+   "id": "cem_policy",
+   "rules": {
+    "class_grid": {
+     "on": true,
+     "soft": true,
+     "order": [
+      "full_mornings",
+      "afternoon_first_2_periods",
+      "extra_periods"
+     ],
+     "base_hours": 28,
+     "avoid_extra_days": [
+      4
+     ],
+     "costs": {
+      "afternoon": 5000,
+      "extra": 15000,
+      "extra_bad_day": 40000,
+      "empty_morning_period": 400
+     }
+    },
+    "student_gaps": "forbidden",
+    "same_subject_twice_per_day": "only_course_plus_group",
+    "max_2h_blocks_per_day": 1,
+    "teacher_comfort": {
+     "single_hour_half_day": 900,
+     "gap_1h": 300,
+     "gap_2h": 800,
+     "working_day": 10,
+     "half_day_shift": 0,
+     "late_finish": 40,
+     "afternoon_hour": 20
+    },
+    "teacher_priority": {
+     "strength": 3,
+     "levels_share": 0.0
+    },
+    "period_costs": {
+     "1": 0,
+     "4": 50,
+     "5": 25,
+     "7": 500,
+     "7_equity": 900
+    },
+    "reception": {
+     "on": true,
+     "in_gap_reward": 1
+    },
+    "remedial_costs": {
+     "morning": 30,
+     "afternoon": 10,
+     "period_7": 50,
+     "gap": 400,
+     "group": 3000,
+     "overlap": 20000
+    },
+    "subject_unavailable_hard": true,
+    "same_day_exempt": [
+     "INFO"
+    ]
+   }
+  }
+ ],
+ "solver": {
+  "time_limit_s": 60,
+  "workers": 8,
+  "grid_phase_share": 0.6
+ }
+}

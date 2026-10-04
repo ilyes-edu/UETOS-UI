@@ -3,6 +3,7 @@
 Everything is stored in st.session_state["pre"] and turned into solver settings by config_patch().
 """
 import pandas as pd
+import timegrid
 
 import i18n
 from i18n import t
@@ -101,7 +102,7 @@ def render(st, plan, data_frames, use_remedial, days=5, slots=7, lunch=3):
     src = st.session_state.get("plan_src")
     if p.get("src") != src:                      # new assignment -> start again
         p.update(joint=None, units=None, unit_fix={}, rem_ok=False, ext=[], fixed={}, src=src)
-    off = lambda d, s, dur=1: d == 2 and s + dur - 1 > lunch        # Tuesday afternoon
+    off = lambda d, s, dur=1: timegrid.CURRENT.off_span(d, s, dur)        # closed half-days (time profile)
 
     st.subheader(t("pre_title"))
     st.caption(t("pre_caption"))
@@ -113,7 +114,10 @@ def render(st, plan, data_frames, use_remedial, days=5, slots=7, lunch=3):
             st.caption(t("pre_rem_found", n=len(info)))
             subjects = sorted({v["subject"] for v in info.values()})
             if p["joint"] is None:
-                p["joint"] = [x for x in ("ARABIC", "MATH") if x in subjects]
+                import presets as _pr
+                _pair = next((x.get("subjects_pair") for x in _pr.load().get("session_templates", [])
+                              if x.get("who") == "teacher_all_classes"), None) or [[]]
+                p["joint"] = [x for x in _pair[0] if x in subjects]
             joint = st.multiselect(t("pre_joint"), subjects, default=[x for x in p["joint"] if x in subjects],
                                    format_func=i18n.subj, key="pre_joint_ms")
             if joint != p["joint"] or p["units"] is None or set(p["units"]) != set(info):

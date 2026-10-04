@@ -5,6 +5,7 @@ Model (same as the solver): rooms of a type form a pool per time slot.  Every cl
 free and can host a split group (تفويج) or a lesson that falls back from a missing lab.
 """
 import re
+import timegrid
 from collections import Counter, defaultdict
 
 import pandas as pd
@@ -231,7 +232,7 @@ def grid_html(occ, caps, days=5, slots=7, color_light=None, color_strong=None):
                  f'white-space:nowrap;padding:2px 6px;border:1px solid #ddd;text-align:start">{room}</th>')
         for d in range(days):
             for s in range(slots):
-                off = d == 2 and s >= 4
+                off = timegrid.CURRENT.is_off(d, s)
                 x = cell.get((room, d, s))
                 bl = "border-inline-start:2px solid #999;" if s == 0 else ""
                 if x is None:
@@ -256,6 +257,6 @@ def free_table(occ, caps, days=5, slots=7):
     """Day × slot table of free classrooms (classroom type)."""
     n = int(caps.get("classroom", 0))
     used = occ[(occ["RoomType"] == "classroom") & occ["Room"].notna()].groupby(["Day", "Slot"]).size()
-    data = {i18n.day(d): [None if (d == 2 and s >= 4) else n - int(used.get((d, s), 0)) for s in range(slots)]
+    data = {i18n.day(d): [None if timegrid.CURRENT.is_off(d, s) else n - int(used.get((d, s), 0)) for s in range(slots)]
             for d in range(days)}
     return pd.DataFrame(data, index=[i18n.slot_label(s) for s in range(slots)])

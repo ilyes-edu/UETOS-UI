@@ -6,6 +6,7 @@ Colour semantics for a candidate start (day, slot) of a lesson:
   red    : impossible (blocked slot, rule violation, or the conflict cannot be resolved by a swap)
 """
 import copy
+import timegrid
 import pandas as pd
 import reception as rc
 import i18n
@@ -25,6 +26,8 @@ class ScheduleEditor:
     def __init__(self, state):
         self.state = copy.deepcopy(state)
         self.cfg = self.state['config']
+        self.G = timegrid.from_state_cfg(self.cfg)
+        timegrid.set_current(self.G)
         self.rooms = self.state['rooms']
         self.L = {l['id']: l for l in self.state['lessons']}
         self.pins = set(self.state.get('pins', [])) & set(self.L)
@@ -47,11 +50,14 @@ class ScheduleEditor:
     @staticmethod
     def classes_of(l):
         """The class itself + every class a remediation session blocks."""
-        return [l['class']] + list(l.get('blocks_classes', []))
+        return [l['class']] + list(l.get('also_classes', [])) + list(l.get('blocks_classes', []))
 
     def class_conflicts(self, l, c):
         """Lessons clashing with l on cell c for class reasons (remediation vs remediation is allowed)."""
         out = set(self.class_occ.get((l['class'],) + c, set()))
+        for k in l.get('also_classes', []):                 # joint session: every class of it
+            out |= self.class_occ.get((k,) + c, set())
+            out |= self.rem_occ.get((k,) + c, set())
         for k in l.get('blocks_classes', []):
             out |= self.class_occ.get((k,) + c, set())
         out |= self.rem_occ.get((l['class'],) + c, set())
@@ -67,6 +73,8 @@ class ScheduleEditor:
         for l in self.L.values():
             for c in self.cells(l):
                 self.class_occ.setdefault((l['class'],) + c, set()).add(l['id'])
+                for k in l.get('also_classes', []):
+                    self.class_occ.setdefault((k,) + c, set()).add(l['id'])
                 for k in l.get('blocks_classes', []):
                     self.rem_occ.setdefault((k,) + c, set()).add(l['id'])
                 for tt in l['teachers']:
@@ -174,7 +182,7 @@ class ScheduleEditor:
             same_day = [x for x in self.L.values() if x['class'] == l['class'] and x['id'] != l['id'] and pos(x)[0] == d]
             if not self.cfg['allow_same_subject_twice_per_day']:
                 for b in base_subjects(l['subject']):
-                    if b == 'INFO': continue
+                    if b in self.cfg.get('same_day_exempt', ['INFO']): continue   # old versions: INFO
                     dup = [x for x in same_day if b in base_subjects(x['subject'])]
                     if not dup: continue
                     if len(dup) == 1 and self.forms_block(l, dup[0], pos):
@@ -208,7 +216,7 @@ class ScheduleEditor:
         for c, d in keys:
             slots = sorted(sl for x in self.L.values() if x['class'] == c and pos(x)[0] == d
                            for sl in range(pos(x)[1], pos(x)[1] + x['duration']))
-            for half in ([s for s in slots if s < 4], [s for s in slots if s >= 4]):
+            for half in ([s for s in slots if s <= self.G.lunch], [s for s in slots if s > self.G.lunch]):
                 if len(half) > 1 and half[-1] - half[0] + 1 > len(half):
                     out.append(t("e_gap", c=C_(c)))
         # standard class grid (soft): warn when a move leaves a hole or uses a 7th slot on a forbidden day
@@ -314,6 +322,14 @@ class ScheduleEditor:
         ds = s - l['start']
         return [(m, d, m['start'] + ds) for m in self.chain(l)]
 
+    def _levels(self, m):
+        cl = self.state.get('class_level') or {}
+        return [cl[c] for c in self.classes_of(m) if c in cl]
+
+    def _t_off(self, m, dd, ss):
+        un = self.state.get('teacher_unavailable') or {}
+        return any([dd, ss + k] in un.get(tc, []) for tc in m['teachers'] for k in range(m['duration']))
+
     def force_ok(self, lid, d, s):
         lb, S = self.cfg['lunch_boundary'], self.cfg['slots']
         for m, dd, ss in self._chain_target(lid, d, s):
@@ -321,8 +337,10 @@ class ScheduleEditor:
                 return False, t('e_outside')
             if m['duration'] > 1 and ss <= lb < ss + m['duration'] - 1:
                 return False, t('e_lunch')
-            if dd == 2 and ss + m['duration'] - 1 >= lb + 1:           # Tuesday afternoon off
+            if self.G.off_span(dd, ss, m['duration'], self._levels(m)):   # closed half-day / level's week
                 return False, t('e_outside')
+            if self._t_off(m, dd, ss):
+                return False, t('e_t_unavail')
         return True, ''
 
     def _cell_ok(self, m, dd, ss):
@@ -331,7 +349,7 @@ class ScheduleEditor:
             return False
         if m['duration'] > 1 and ss <= lb < ss + m['duration'] - 1:
             return False
-        if dd == 2 and ss + m['duration'] - 1 >= lb + 1:
+        if self.G.off_span(dd, ss, m['duration'], self._levels(m)) or self._t_off(m, dd, ss):
             return False
         return True
 
@@ -342,6 +360,8 @@ class ScheduleEditor:
         busy in another class, a blocked hour) stay and are shown as conflicts."""
         l = self.L[lid]
         plain = {m['id']: (dd, ss) for m, dd, ss in self._chain_target(lid, d, s)}
+        if l.get('also_classes'):                        # joint session: no automatic switch (conflicts are shown)
+            return plain
         c, d0, ds = l['class'], l['day'], s - l['start']
         S = self.cfg['slots']
         mine = [x for x in self.L.values() if x['class'] == c]
@@ -594,9 +614,10 @@ class ScheduleEditor:
         return st
 
     def to_schedule_df(self):
-        rows = [{'Class': l['class'], 'Day': l['day'], 'Slot': l['start'] + k, 'Subject': l['subject'],
-                 'Teachers': ', '.join(l['teachers']), 'Classes': ', '.join(l.get('blocks_classes', [])), 'RemSubject': l.get('rem_subject', '')}
-                for l in self.L.values() for k in range(l['duration'])]
+        rows = [{'Class': cc, 'Day': l['day'], 'Slot': l['start'] + k, 'Subject': l['subject'],
+                 'Teachers': ', '.join(l['teachers']), 'Classes': ', '.join(l.get('blocks_classes', [])), 'RemSubject': l.get('rem_subject', ''),
+                 'Joint': l.get('joint', '') or ''}
+                for l in self.L.values() for k in range(l['duration']) for cc in [l['class']] + list(l.get('also_classes', []))]
         return pd.DataFrame(rows)
 
     def hard_violations(self):
