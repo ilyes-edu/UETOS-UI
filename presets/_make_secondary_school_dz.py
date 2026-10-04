@@ -2,12 +2,12 @@ import json, copy
 M = json.load(open("/home/user/timetable/presets/middle_school_dz.json"))
 N = lambda en, ar: {"en": en, "ar": ar}
 P = {"preset_id": "dz_secondary_school", "version": 1,
-     "name": N("Algerian secondary school (lycée) – sample values", "ثانوية جزائرية – قيم نموذجية"),
+     "name": N("Algerian secondary school (lycée) – default values", "ثانوية جزائرية – القيم الافتراضية"),
      "notes": "SAMPLE defaults. Weekly totals follow the 2026/2027 decree as reported in the press (1AS Letters 31 h, "
               "1AS Sciences & Technology 32 h; Maths track 3AS maths 10 h; Experimental sciences SVT 6 h, maths 5 h, physics 4 h). "
-              "All other hours are estimates: check them against the official decree and edit the curriculum table.",
+              "Hours per year/track = course + TD + TP from the school administration tables (2026/2027).",
      "wizard": {"middle_school_questions": False, "sample_counts": {"1AS-ST": 4, "1AS-LET": 3, "2AS-SE": 2, "2AS-M": 1,
-                "2AS-GE": 1, "2AS-LP": 2, "3AS-SE": 2, "3AS-M": 1, "3AS-GE": 1, "3AS-LP": 2}}}
+                "2AS-TM": 1, "2AS-GE": 1, "2AS-LP": 2, "3AS-SE": 2, "3AS-M": 1, "3AS-TM": 1, "3AS-GE": 1, "3AS-LP": 2, "2AS-LE": 1, "3AS-LE": 1}}}
 per = [("08:00", "09:00", "morning"), ("09:00", "10:00", "morning"), ("10:00", "11:00", "morning"), ("11:00", "12:00", "morning"),
        ("13:00", "14:00", "afternoon"), ("14:00", "15:00", "afternoon"), ("15:00", "16:00", "afternoon"), ("16:00", "17:00", "afternoon")]
 tp = copy.deepcopy(M["time_profiles"][0]); tp["id"] = "lycee_week"; tp["name"] = N("Secondary school week", "أسبوع الثانوية")
@@ -43,27 +43,31 @@ P["room_types"] = [
     {"id": "gym", "name": N("Sports field", "ملعب"), "count": 3, "capacity_students": 40, "fallback": None}]
 ROOM = {"PHYS": "lab", "SCIENCE": "lab", "INFO": "computer_lab", "SPORT": "gym"}
 # (course, td, tp) per subject; tp in labs
+def T(txt):
+    out = {}
+    for part in txt.split(","):
+        k, v = part.split("=")
+        out[k.strip()] = tuple(int(x) for x in v.strip().split("+"))
+    return out
+COMMON2 = "ISLAMIC=2+0+0,SPORT=2+0+0"
 C = {
- ("1AS", "ST"): {"ARABIC": (3,), "ISLAMIC": (2,), "MATH": (5,), "FRENCH": (3,), "ENGLISH": (3,), "PHYS": (3, 0, 1), "SCIENCE": (3, 0, 1),
-                 "HISTGEO": (2,), "TECH": (2,), "INFO": (0, 0, 2), "SPORT": (2,)},
- ("1AS", "LET"): {"ARABIC": (6,), "ISLAMIC": (2,), "MATH": (3,), "FRENCH": (4,), "ENGLISH": (3,), "HISTGEO": (4,), "SCIENCE": (2,),
-                  "PHYS": (2,), "INFO": (0, 0, 2), "ARTS": (1,), "SPORT": (2,)},
- ("3AS", "SE"): {"SCIENCE": (5, 0, 1), "MATH": (5,), "PHYS": (3, 0, 1), "ARABIC": (3,), "ISLAMIC": (2,), "FRENCH": (3,), "ENGLISH": (3,),
-                 "HISTGEO": (2,), "PHILO": (2,), "SPORT": (2,)},
- ("3AS", "M"): {"MATH": (10,), "PHYS": (5, 0, 1), "SCIENCE": (2,), "ARABIC": (3,), "ISLAMIC": (2,), "FRENCH": (3,), "ENGLISH": (2,),
-                "HISTGEO": (2,), "PHILO": (2,), "SPORT": (2,)},
- ("3AS", "TM"): {"MATH": (6,), "PHYS": (5, 0, 1), "TECH": (4, 0, 3), "ARABIC": (2,), "ISLAMIC": (2,), "FRENCH": (3,), "ENGLISH": (2,),
-                 "HISTGEO": (2,), "PHILO": (2,), "SPORT": (2,)},
- ("3AS", "GE"): {"ACCOUNT": (5,), "ECON": (4,), "LAW": (2,), "MATH": (5,), "ARABIC": (3,), "ISLAMIC": (2,), "FRENCH": (3,),
-                 "ENGLISH": (3,), "HISTGEO": (4,), "PHILO": (2,), "SPORT": (2,)},
- ("3AS", "LP"): {"PHILO": (7,), "ARABIC": (6,), "HISTGEO": (4,), "MATH": (2,), "ISLAMIC": (2,), "FRENCH": (3,), "ENGLISH": (3,), "SPORT": (2,)},
- ("3AS", "LE"): {"FRENCH": (5,), "ENGLISH": (5,), "LANG3": (4,), "ARABIC": (5,), "PHILO": (2,), "HISTGEO": (3,), "MATH": (2,),
-                 "ISLAMIC": (2,), "SPORT": (2,)},
+ ("1AS", "ST"): T("ARABIC=3+1+0,MATH=3+2+0,PHYS=2+0+2,SCIENCE=2+0+2,HISTGEO=2+0+0,FRENCH=2+1+0,ENGLISH=2+1+0,ISLAMIC=2+0+0,"
+                  "INFO=0+0+2,TECH=1+0+1,SPORT=2+0+0,ARTS=1+0+0"),
+ ("1AS", "LET"): T("ARABIC=4+1+0,MATH=2+0+0,HISTGEO=3+0+0,FRENCH=3+1+0,ENGLISH=3+1+0,ISLAMIC=2+0+0,INFO=0+0+2,SPORT=2+0+0,ARTS=1+0+0"),
+ ("2AS", "SE"): T("ARABIC=2+1+0,MATH=3+2+0,PHYS=3+0+2,SCIENCE=2+0+2,HISTGEO=2+0+0,PHILO=2+0+0,FRENCH=2+1+0,ENGLISH=2+1+0,INFO=0+0+2," + COMMON2),
+ ("2AS", "M"): T("ARABIC=2+1+0,MATH=5+2+0,PHYS=4+2+0,SCIENCE=2+0+0,HISTGEO=2+0+0,PHILO=2+0+0,FRENCH=2+1+0,ENGLISH=2+1+0,INFO=0+0+2," + COMMON2),
+ ("2AS", "TM"): T("ARABIC=2+1+0,MATH=4+2+0,PHYS=3+0+2,TECH=2+0+4,HISTGEO=2+0+0,PHILO=2+0+0,FRENCH=2+1+0,ENGLISH=2+1+0,INFO=0+0+2," + COMMON2),
+ ("2AS", "LP"): T("ARABIC=4+1+0,MATH=2+0+0,HISTGEO=4+0+0,PHILO=3+1+0,FRENCH=3+1+0,ENGLISH=2+1+0," + COMMON2),
+ ("2AS", "LE"): T("ARABIC=3+1+0,MATH=2+0+0,HISTGEO=4+0+0,PHILO=3+0+0,FRENCH=3+1+0,ENGLISH=3+1+0,LANG3=4+1+0," + COMMON2),
+ ("2AS", "GE"): T("ARABIC=2+1+0,MATH=3+2+0,ACCOUNT=3+2+0,ECON=3+0+0,LAW=2+0+0,HISTGEO=3+0+0,PHILO=2+0+0,FRENCH=2+1+0,ENGLISH=2+1+0,"
+                  "INFO=0+0+2," + COMMON2),
+ ("3AS", "SE"): T("ARABIC=2+1+0,MATH=3+2+0,PHYS=3+0+2,SCIENCE=4+0+2,PHILO=2+0+0,HISTGEO=2+0+0,FRENCH=2+1+0,ENGLISH=2+0+0," + COMMON2),
+ ("3AS", "M"): T("ARABIC=2+1+0,MATH=5+2+0,PHYS=4+2+0,SCIENCE=2+0+0,PHILO=2+0+0,HISTGEO=2+0+0,FRENCH=2+0+0,ENGLISH=2+0+0," + COMMON2),
+ ("3AS", "TM"): T("ARABIC=2+1+0,MATH=4+2+0,PHYS=3+0+2,TECH=2+0+4,PHILO=2+0+0,HISTGEO=2+0+0,FRENCH=2+0+0,ENGLISH=2+0+0," + COMMON2),
+ ("3AS", "LP"): T("ARABIC=5+1+0,MATH=2+0+0,PHILO=6+2+0,HISTGEO=4+0+0,FRENCH=4+1+0,ENGLISH=3+1+0," + COMMON2),
+ ("3AS", "LE"): T("ARABIC=4+1+0,MATH=2+0+0,PHILO=3+1+0,HISTGEO=4+0+0,FRENCH=4+1+0,ENGLISH=4+1+0,LANG3=3+1+0," + COMMON2),
+ ("3AS", "GE"): T("ARABIC=2+1+0,MATH=3+2+0,ACCOUNT=4+2+0,ECON=4+0+0,LAW=2+0+0,PHILO=2+0+0,HISTGEO=4+0+0,FRENCH=2+1+0,ENGLISH=2+0+0," + COMMON2),
 }
-for tr in ("SE", "M", "TM", "GE", "LP", "LE"):        # 2AS = 3AS of the same track (estimates), maths track 7 h
-    C[("2AS", tr)] = dict(C[("3AS", tr)])
-C[("2AS", "M")]["MATH"] = (7,)
-C[("2AS", "M")]["SCIENCE"] = (3,)
 cur = []
 for (y, tr), subs in C.items():
     for s, h in subs.items():
@@ -77,9 +81,9 @@ P["teacher_defaults"] = copy.deepcopy(M["teacher_defaults"]); P["teacher_default
 lab_lv = ["1AS-ST", "2AS-SE", "3AS-SE"]
 P["session_templates"] = [
     {"id": "R_LAB_01", "kind": "split_class", "years": lab_lv,
-     "groups": [{"group": "A", "parts": [{"subject": "PHYS", "type": "TP", "hours": 1}]},
-                {"group": "B", "parts": [{"subject": "SCIENCE", "type": "TP", "hours": 1}]}],
-     "frequency": "weekly", "swap": "after_first_hour", "description": "Every week: 2h lab block - groups swap after the first hour"}]
+     "groups": [{"group": "A", "parts": [{"subject": "PHYS", "type": "TP", "hours": 2}]},
+                {"group": "B", "parts": [{"subject": "SCIENCE", "type": "TP", "hours": 2}]}],
+     "frequency": "weekly", "swap": "after_first_hour", "description": "Every week: half class Physics TP 2h / half class Natural sciences TP 2h, then the groups swap"}]
 pol = copy.deepcopy(M["policies"][0]); pol["id"] = "lycee_policy"
 pol["rules"]["class_grid"]["base_hours"] = 32
 pol["rules"]["same_day_exempt"] = ["INFO"]
