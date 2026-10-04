@@ -1076,7 +1076,7 @@ class SchoolSchedulerEngine:
             classes_in_lvl = self.data.df_classes[self.data.df_classes['Level'] == lvl]['Class_ID'].tolist()
             max_slot_7_lvl = self.model.NewIntVar(0, 5, f'max_slot_7_{lvl}')
             for c in classes_in_lvl:
-                c_slot_7_count = sum(self.class_active[c, d, 6] for d in range(self.config.days))
+                c_slot_7_count = sum(self.class_active[c, d, self.config.slots - 1] for d in range(self.config.days))
                 self.model.Add(max_slot_7_lvl >= c_slot_7_count)
             self.penalties.append(max_slot_7_lvl * self.config.slot_7_equity_penalty)
 

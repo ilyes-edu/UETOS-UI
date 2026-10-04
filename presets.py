@@ -27,7 +27,45 @@ def available():
     return out
 
 
-def load(pid=DEFAULT_ID):
+CURRENT_ID = DEFAULT_ID
+
+
+def set_current(pid):
+    """Preset used by every load() without argument (set by the app from the selector)."""
+    global CURRENT_ID
+    CURRENT_ID = pid if pid in available() else DEFAULT_ID
+    P = load(CURRENT_ID)
+    register_names(P)
+    return P
+
+
+def register_names(P):
+    """Subject names / short names of the preset -> the UI dictionaries (bilingual, no code change per school type)."""
+    import i18n
+    for sj in P.get("subjects", []):
+        nm, sh = sj.get("name") or {}, sj.get("short") or {}
+        if nm.get("ar"):
+            i18n.SUBJECT_AR.setdefault(sj["id"], nm["ar"])
+        if sh:
+            i18n.SHORT.setdefault(sj["id"], (sh.get("en", sj["id"]), sh.get("ar", sj["id"])))
+
+
+def level_key(year, track):
+    return f"{year}-{track}" if track else str(year)
+
+
+def level_keys(P=None):
+    """Levels of a preset: a year without track, or one level per (year, track)."""
+    P = P or load()
+    out = []
+    for y in sorted(P.get("years", []), key=lambda y: y.get("order", 0)):
+        trs = [tr["id"] for tr in P.get("tracks", []) if y["id"] in tr.get("years", [])]
+        out += [level_key(y["id"], tr) for tr in trs] or [str(y["id"])]
+    return out
+
+
+def load(pid=None):
+    pid = pid or CURRENT_ID
     if pid not in _cache:
         with open(os.path.join(DIR, pid + ".json"), encoding="utf-8") as fh:
             _cache[pid] = json.load(fh)
@@ -134,7 +172,7 @@ def level_week_df(P=None, classes=None):
     P = P or load()
     cfg = apply_to_config(SchedulerConfig(), P)
     levels = list(dict.fromkeys(classes["Level"].astype(str))) if classes is not None and "Level" in classes else \
-        [str(y["id"]) for y in P.get("years", [])]
+        level_keys(P)
     rows = []
     for lv in levels:
         pr = cfg.level_profiles.get(lv, {})
@@ -173,7 +211,7 @@ def joint_to_cfg(df, cfg):
 # ---------------------------------------------------------------- default data tables (current file formats)
 def curriculum_df(P=None):
     P = P or load()
-    return pd.DataFrame([{"Level": r["year"], "Subject_Code": r["subject"], "Hrs_Cours": r["hours"].get("course", 0),
+    return pd.DataFrame([{"Level": level_key(r["year"], r.get("track")), "Subject_Code": r["subject"], "Hrs_Cours": r["hours"].get("course", 0),
                           "Hrs_TD": r["hours"].get("td", 0), "Hrs_TP": r["hours"].get("tp", 0),
                           "Hrs_Practice": r["hours"].get("practice", 0), "Required_Room_Type": r.get("room_type", "classroom")}
                          for r in P.get("curriculum", [])])

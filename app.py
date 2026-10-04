@@ -46,7 +46,7 @@ FILES = {
 
 # ------------------------------------------------------------------ server preset (school-type defaults)
 import presets
-PRESET = presets.load(st.session_state.get("preset_id", presets.DEFAULT_ID))
+PRESET = presets.set_current(st.session_state.get("preset_id", presets.DEFAULT_ID))
 timegrid.set_current(timegrid.from_config(presets.apply_to_config(SchedulerConfig(), PRESET)))
 i18n.DAY_NAMES = presets.day_names(PRESET)
 
@@ -226,7 +226,7 @@ if PAGE == "data":
     with _pc1:
         src = st.radio(t("source"), ["wizard", "upload", "sample"], format_func=_SRC_FMT, horizontal=True, key="src")
     _pav = presets.available()
-    _pc2.selectbox(t("preset"), list(_pav), key="preset_id", disabled=len(_pav) < 2,
+    _pc2.selectbox(t("preset"), list(_pav), key="preset_id", help=t("preset_help"),
                    format_func=lambda k: _pav[k].get(i18n.LANG, _pav[k].get("en", k)) if isinstance(_pav[k], dict) else str(_pav[k]))
 else:
     src = ss.get("src", "wizard")
@@ -266,6 +266,9 @@ else:
     # default example = the school files in sample_data/ (assignment.csv = اسناد)
     # school-specific sample files (classes, staff, اسناد) + the PRESET's default tables (curriculum,
     # unavailable times, rooms, session templates) – nothing hard-coded, everything editable/exportable
+    if not PRESET.get("wizard", {}).get("middle_school_questions", True):
+        st.info(t("preset_no_sample"))
+        st.stop()
     data_frames = {k: pd.read_csv(os.path.join(SAMPLE, f)) for k, f in FILES.items()
                    if os.path.exists(os.path.join(SAMPLE, f))}
     data_frames.update(presets.default_frames(PRESET))

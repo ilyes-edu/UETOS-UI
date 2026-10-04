@@ -601,6 +601,14 @@ S = {
                 "الحصص = آخر حصة للمستوى (الأقصى {p}). مغلق = أنصاف أيام إضافية مغلقة، مثل '4:afternoon;2:all'. الأيام: {days}. "
                 "الأيام واستراحة الغداء هي نفسها للمؤسسة."),
     "lw_level": ("Level", "المستوى"), "lw_periods": ("Periods", "الحصص"), "lw_closed": ("Closed", "مغلق"),
+    "preset_help": ("Each school type is a defaults file (presets/*.json) on the server: time structure, curriculum, rooms, "
+                    "session templates, rules. Add a file to get a new choice here.",
+                    "كل نوع مؤسسة هو ملف قيم افتراضية (presets/*.json) على الخادم: الهيكل الزمني، المنهاج، القاعات، قوالب الحصص، القواعد. "
+                    "أضف ملفًا ليظهر اختيار جديد هنا."),
+    "preset_no_sample": ("The sample school is a middle school. For this school type, build the school with the setup guide "
+                         "(🧭): years, tracks, class counts and curriculum come from the defaults file.",
+                         "المؤسسة النموذجية متوسطة. لهذا النوع من المؤسسات أنشئ المؤسسة بدليل الإعداد (🧭): السنوات والشعب "
+                         "وعدد الأفواج والمنهاج تأتي من ملف القيم الافتراضية."),
     "preset": ("School type (defaults)", "نوع المؤسسة (القيم الافتراضية)"),
     "js_title": ("🔗 Joint sessions ({n} rows)", "🔗 الحصص المشتركة ({n} سطر)"),
     "js_help": ("One session shared by several classes (merged classes) or several subjects in parallel (option groups). "

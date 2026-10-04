@@ -1,0 +1,3154 @@
+{
+ "preset_id": "dz_secondary_school",
+ "version": 1,
+ "name": {
+  "en": "Algerian secondary school (lycée) – sample values",
+  "ar": "ثانوية جزائرية – قيم نموذجية"
+ },
+ "notes": "SAMPLE defaults. Weekly totals follow the 2026/2027 decree as reported in the press (1AS Letters 31 h, 1AS Sciences & Technology 32 h; Maths track 3AS maths 10 h; Experimental sciences SVT 6 h, maths 5 h, physics 4 h). All other hours are estimates: check them against the official decree and edit the curriculum table.",
+ "wizard": {
+  "middle_school_questions": false,
+  "sample_counts": {
+   "1AS-ST": 4,
+   "1AS-LET": 3,
+   "2AS-SE": 2,
+   "2AS-M": 1,
+   "2AS-GE": 1,
+   "2AS-LP": 2,
+   "3AS-SE": 2,
+   "3AS-M": 1,
+   "3AS-GE": 1,
+   "3AS-LP": 2
+  }
+ },
+ "time_profiles": [
+  {
+   "id": "lycee_week",
+   "name": {
+    "en": "Secondary school week",
+    "ar": "أسبوع الثانوية"
+   },
+   "days": [
+    {
+     "id": 0,
+     "name": {
+      "en": "Sunday",
+      "ar": "الأحد"
+     }
+    },
+    {
+     "id": 1,
+     "name": {
+      "en": "Monday",
+      "ar": "الإثنين"
+     }
+    },
+    {
+     "id": 2,
+     "name": {
+      "en": "Tuesday",
+      "ar": "الثلاثاء"
+     }
+    },
+    {
+     "id": 3,
+     "name": {
+      "en": "Wednesday",
+      "ar": "الأربعاء"
+     }
+    },
+    {
+     "id": 4,
+     "name": {
+      "en": "Thursday",
+      "ar": "الخميس"
+     }
+    }
+   ],
+   "periods": [
+    {
+     "id": 0,
+     "label": "1",
+     "start": "08:00",
+     "end": "09:00",
+     "half": "morning"
+    },
+    {
+     "id": 1,
+     "label": "2",
+     "start": "09:00",
+     "end": "10:00",
+     "half": "morning"
+    },
+    {
+     "id": 2,
+     "label": "3",
+     "start": "10:00",
+     "end": "11:00",
+     "half": "morning"
+    },
+    {
+     "id": 3,
+     "label": "4",
+     "start": "11:00",
+     "end": "12:00",
+     "half": "morning"
+    },
+    {
+     "id": 4,
+     "label": "5",
+     "start": "13:00",
+     "end": "14:00",
+     "half": "afternoon"
+    },
+    {
+     "id": 5,
+     "label": "6",
+     "start": "14:00",
+     "end": "15:00",
+     "half": "afternoon"
+    },
+    {
+     "id": 6,
+     "label": "7",
+     "start": "15:00",
+     "end": "16:00",
+     "half": "afternoon"
+    },
+    {
+     "id": 7,
+     "label": "8",
+     "start": "16:00",
+     "end": "17:00",
+     "half": "afternoon"
+    }
+   ],
+   "lunch_after_period": 3,
+   "closed": [
+    {
+     "day": 2,
+     "half": "afternoon",
+     "why": {
+      "en": "Tuesday afternoon off",
+      "ar": "مساء الثلاثاء عطلة"
+     }
+    }
+   ],
+   "week_cycle": [
+    "A",
+    "B"
+   ]
+  }
+ ],
+ "stages": [
+  {
+   "id": "secondary",
+   "name": {
+    "en": "Secondary school",
+    "ar": "التعليم الثانوي"
+   },
+   "policy": "lycee_policy"
+  }
+ ],
+ "years": [
+  {
+   "id": "1AS",
+   "name": {
+    "en": "1AS",
+    "ar": "1 ثانوي"
+   },
+   "stage": "secondary",
+   "time_profile": "lycee_week",
+   "order": 1
+  },
+  {
+   "id": "2AS",
+   "name": {
+    "en": "2AS",
+    "ar": "2 ثانوي"
+   },
+   "stage": "secondary",
+   "time_profile": "lycee_week",
+   "order": 2
+  },
+  {
+   "id": "3AS",
+   "name": {
+    "en": "3AS",
+    "ar": "3 ثانوي"
+   },
+   "stage": "secondary",
+   "time_profile": "lycee_week",
+   "order": 3
+  }
+ ],
+ "tracks": [
+  {
+   "id": "ST",
+   "name": {
+    "en": "Sciences & Technology",
+    "ar": "جذع مشترك علوم وتكنولوجيا"
+   },
+   "years": [
+    "1AS"
+   ]
+  },
+  {
+   "id": "LET",
+   "name": {
+    "en": "Letters",
+    "ar": "جذع مشترك آداب"
+   },
+   "years": [
+    "1AS"
+   ]
+  },
+  {
+   "id": "SE",
+   "name": {
+    "en": "Experimental sciences",
+    "ar": "علوم تجريبية"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  },
+  {
+   "id": "M",
+   "name": {
+    "en": "Mathematics",
+    "ar": "رياضيات"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  },
+  {
+   "id": "TM",
+   "name": {
+    "en": "Technical maths",
+    "ar": "تقني رياضي"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  },
+  {
+   "id": "GE",
+   "name": {
+    "en": "Management & economics",
+    "ar": "تسيير واقتصاد"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  },
+  {
+   "id": "LP",
+   "name": {
+    "en": "Letters & philosophy",
+    "ar": "آداب وفلسفة"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  },
+  {
+   "id": "LE",
+   "name": {
+    "en": "Foreign languages",
+    "ar": "لغات أجنبية"
+   },
+   "years": [
+    "2AS",
+    "3AS"
+   ]
+  }
+ ],
+ "class_template": {
+  "pattern": "{year}-{track}{n}",
+  "default_students": 40,
+  "note": "classes = year x track x number"
+ },
+ "subjects": [
+  {
+   "id": "ARABIC",
+   "name": {
+    "en": "Arabic",
+    "ar": "لغة عربية"
+   },
+   "short": {
+    "en": "ARA",
+    "ar": "عربية"
+   },
+   "color": null
+  },
+  {
+   "id": "ISLAMIC",
+   "name": {
+    "en": "Islamic sciences",
+    "ar": "علوم إسلامية"
+   },
+   "short": {
+    "en": "ISL",
+    "ar": "إسلامية"
+   },
+   "color": null
+  },
+  {
+   "id": "MATH",
+   "name": {
+    "en": "Mathematics",
+    "ar": "رياضيات"
+   },
+   "short": {
+    "en": "MATH",
+    "ar": "رياضيات"
+   },
+   "color": null
+  },
+  {
+   "id": "FRENCH",
+   "name": {
+    "en": "French",
+    "ar": "لغة فرنسية"
+   },
+   "short": {
+    "en": "FR",
+    "ar": "فرنسية"
+   },
+   "color": null
+  },
+  {
+   "id": "ENGLISH",
+   "name": {
+    "en": "English",
+    "ar": "لغة إنجليزية"
+   },
+   "short": {
+    "en": "ENG",
+    "ar": "إنجليزية"
+   },
+   "color": null
+  },
+  {
+   "id": "PHYS",
+   "name": {
+    "en": "Physics",
+    "ar": "علوم فيزيائية"
+   },
+   "short": {
+    "en": "PHY",
+    "ar": "فيزياء"
+   },
+   "color": null
+  },
+  {
+   "id": "SCIENCE",
+   "name": {
+    "en": "Natural & life sciences",
+    "ar": "علوم الطبيعة والحياة"
+   },
+   "short": {
+    "en": "SVT",
+    "ar": "علوم"
+   },
+   "color": null
+  },
+  {
+   "id": "HISTGEO",
+   "name": {
+    "en": "History & geography",
+    "ar": "تاريخ وجغرافيا"
+   },
+   "short": {
+    "en": "H-G",
+    "ar": "تاريخ/جغ"
+   },
+   "color": null
+  },
+  {
+   "id": "PHILO",
+   "name": {
+    "en": "Philosophy",
+    "ar": "فلسفة"
+   },
+   "short": {
+    "en": "PHILO",
+    "ar": "فلسفة"
+   },
+   "color": null
+  },
+  {
+   "id": "INFO",
+   "name": {
+    "en": "Computer science",
+    "ar": "إعلام آلي"
+   },
+   "short": {
+    "en": "INFO",
+    "ar": "إعلام"
+   },
+   "color": null
+  },
+  {
+   "id": "TECH",
+   "name": {
+    "en": "Technology",
+    "ar": "تكنولوجيا"
+   },
+   "short": {
+    "en": "TECH",
+    "ar": "تكنولوجيا"
+   },
+   "color": null
+  },
+  {
+   "id": "ACCOUNT",
+   "name": {
+    "en": "Accounting & finance",
+    "ar": "تسيير محاسبي ومالي"
+   },
+   "short": {
+    "en": "ACC",
+    "ar": "محاسبة"
+   },
+   "color": null
+  },
+  {
+   "id": "ECON",
+   "name": {
+    "en": "Economics & management",
+    "ar": "اقتصاد ومناجمنت"
+   },
+   "short": {
+    "en": "ECO",
+    "ar": "اقتصاد"
+   },
+   "color": null
+  },
+  {
+   "id": "LAW",
+   "name": {
+    "en": "Law",
+    "ar": "قانون"
+   },
+   "short": {
+    "en": "LAW",
+    "ar": "قانون"
+   },
+   "color": null
+  },
+  {
+   "id": "LANG3",
+   "name": {
+    "en": "Third language (German/Spanish/Italian)",
+    "ar": "لغة أجنبية ثالثة"
+   },
+   "short": {
+    "en": "L3",
+    "ar": "لغة 3"
+   },
+   "color": null
+  },
+  {
+   "id": "ARTS",
+   "name": {
+    "en": "Arts",
+    "ar": "فنون"
+   },
+   "short": {
+    "en": "ART",
+    "ar": "فنون"
+   },
+   "color": null
+  },
+  {
+   "id": "SPORT",
+   "name": {
+    "en": "Physical education",
+    "ar": "تربية بدنية"
+   },
+   "short": {
+    "en": "PE",
+    "ar": "رياضة"
+   },
+   "color": null
+  }
+ ],
+ "room_types": [
+  {
+   "id": "classroom",
+   "name": {
+    "en": "Classroom",
+    "ar": "قاعة دراسة"
+   },
+   "count": 22,
+   "capacity_students": 40,
+   "fallback": null
+  },
+  {
+   "id": "lab",
+   "name": {
+    "en": "Laboratory",
+    "ar": "مخبر"
+   },
+   "count": 4,
+   "capacity_students": 40,
+   "fallback": "classroom"
+  },
+  {
+   "id": "computer_lab",
+   "name": {
+    "en": "Computer room",
+    "ar": "قاعة إعلام آلي"
+   },
+   "count": 2,
+   "capacity_students": 20,
+   "fallback": null
+  },
+  {
+   "id": "workshop",
+   "name": {
+    "en": "Technology workshop",
+    "ar": "ورشة تكنولوجيا"
+   },
+   "count": 1,
+   "capacity_students": 20,
+   "fallback": "classroom"
+  },
+  {
+   "id": "gym",
+   "name": {
+    "en": "Sports field",
+    "ar": "ملعب"
+   },
+   "count": 3,
+   "capacity_students": 40,
+   "fallback": null
+  }
+ ],
+ "curriculum": [
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "MATH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "PHYS",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "TECH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "INFO",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "computer_lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "ST",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 6,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "MATH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "PHYS",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "INFO",
+   "hours": {
+    "course": 0,
+    "td": 0,
+    "tp": 2,
+    "practice": 0
+   },
+   "room_type": "computer_lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "ARTS",
+   "hours": {
+    "course": 1,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "1AS",
+   "track": "LET",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "MATH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "PHYS",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "SE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "MATH",
+   "hours": {
+    "course": 10,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "PHYS",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "M",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "MATH",
+   "hours": {
+    "course": 6,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "PHYS",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "TECH",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 3,
+    "practice": 0
+   },
+   "room_type": "workshop",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "TM",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "ACCOUNT",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "ECON",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "LAW",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "MATH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "GE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "PHILO",
+   "hours": {
+    "course": 7,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 6,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "MATH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LP",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "LANG3",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "MATH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "3AS",
+   "track": "LE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "MATH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "PHYS",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "SE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "MATH",
+   "hours": {
+    "course": 7,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "PHYS",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "SCIENCE",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "M",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "MATH",
+   "hours": {
+    "course": 6,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "PHYS",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 1,
+    "practice": 0
+   },
+   "room_type": "lab",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "TECH",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 3,
+    "practice": 0
+   },
+   "room_type": "workshop",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "TM",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "ACCOUNT",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "ECON",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "LAW",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "MATH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "GE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "PHILO",
+   "hours": {
+    "course": 7,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 6,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "MATH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LP",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "FRENCH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "ENGLISH",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "LANG3",
+   "hours": {
+    "course": 4,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "ARABIC",
+   "hours": {
+    "course": 5,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "PHILO",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "HISTGEO",
+   "hours": {
+    "course": 3,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "MATH",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "ISLAMIC",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "classroom",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  },
+  {
+   "year": "2AS",
+   "track": "LE",
+   "subject": "SPORT",
+   "hours": {
+    "course": 2,
+    "td": 0,
+    "tp": 0,
+    "practice": 0
+   },
+   "room_type": "gym",
+   "blocks_allowed": [
+    1,
+    2
+   ],
+   "max_per_day": 1,
+   "frequency": "weekly"
+  }
+ ],
+ "subject_unavailable": [],
+ "teacher_defaults": {
+  "max_hours": 18,
+  "statuses": [
+   {
+    "id": "normal",
+    "name": {
+     "en": "Normal",
+     "ar": "عادي"
+    },
+    "hours_reduction": 0
+   },
+   {
+    "id": "mumayaz",
+    "name": {
+     "en": "Distinguished (مميز)",
+     "ar": "مميز"
+    },
+    "hours_reduction": 2
+   }
+  ],
+  "reception_hours": 1,
+  "remedial_hours": 1,
+  "availability": "all",
+  "note": "each teacher may override max_hours, status, unavailable times, fixed years/tracks/classes"
+ },
+ "session_templates": [
+  {
+   "id": "R_LAB_01",
+   "kind": "split_class",
+   "years": [
+    "1AS-ST",
+    "2AS-SE",
+    "3AS-SE"
+   ],
+   "groups": [
+    {
+     "group": "A",
+     "parts": [
+      {
+       "subject": "PHYS",
+       "type": "TP",
+       "hours": 1
+      }
+     ]
+    },
+    {
+     "group": "B",
+     "parts": [
+      {
+       "subject": "SCIENCE",
+       "type": "TP",
+       "hours": 1
+      }
+     ]
+    }
+   ],
+   "frequency": "weekly",
+   "swap": "after_first_hour",
+   "description": "Every week: 2h lab block - groups swap after the first hour"
+  }
+ ],
+ "policies": [
+  {
+   "id": "lycee_policy",
+   "rules": {
+    "class_grid": {
+     "on": true,
+     "soft": true,
+     "order": [
+      "full_mornings",
+      "afternoon_first_2_periods",
+      "extra_periods"
+     ],
+     "base_hours": 32,
+     "avoid_extra_days": [
+      4
+     ],
+     "costs": {
+      "afternoon": 5000,
+      "extra": 15000,
+      "extra_bad_day": 40000,
+      "empty_morning_period": 400
+     }
+    },
+    "student_gaps": "forbidden",
+    "same_subject_twice_per_day": "only_course_plus_group",
+    "max_2h_blocks_per_day": 1,
+    "teacher_comfort": {
+     "single_hour_half_day": 900,
+     "gap_1h": 300,
+     "gap_2h": 800,
+     "working_day": 10,
+     "half_day_shift": 0,
+     "late_finish": 40,
+     "afternoon_hour": 20
+    },
+    "teacher_priority": {
+     "strength": 3,
+     "levels_share": 0.0
+    },
+    "period_costs": {
+     "1": 0,
+     "4": 50,
+     "5": 25,
+     "7": 500,
+     "7_equity": 900
+    },
+    "reception": {
+     "on": true,
+     "in_gap_reward": 1
+    },
+    "remedial_costs": {
+     "morning": 30,
+     "afternoon": 10,
+     "period_7": 50,
+     "gap": 400,
+     "group": 3000,
+     "overlap": 20000
+    },
+    "subject_unavailable_hard": true,
+    "same_day_exempt": [
+     "INFO"
+    ]
+   }
+  }
+ ],
+ "solver": {
+  "time_limit_s": 60,
+  "workers": 8,
+  "grid_phase_share": 0.6
+ }
+}

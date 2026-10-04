@@ -94,6 +94,8 @@ i18n.S.update({
                       "يُستعمل إعداد المؤسسة المُنشأ بالدليل ({c} فوجًا، {p} أستاذًا)."),
     "wz_not_done": ("The setup guide is not finished yet.", "لم يكتمل دليل الإعداد بعد."),
     # step 1
+    "wz_rules_from_preset": ("Group rules come from the school-type defaults; edit them later in the Data page (split rules).",
+                             "قواعد التفويج من القيم الافتراضية لنوع المؤسسة؛ يمكن تعديلها لاحقًا في صفحة المعطيات (قواعد التفويج)."),
     "wz_struct": ("🌳 Years and tracks (school structure)", "🌳 السنوات والشعب (هيكل المؤسسة)"),
     "wz_struct_help": ("Years: free number and names. Tracks: optional; list the years where each track exists (IDs separated "
                        "by ';'). A year with tracks gives one level per track (e.g. 2AS-SCI); classes = level × number.",
@@ -206,10 +208,26 @@ def _ans(ss):
     if "wz" not in ss:
         ss["wz"] = json.loads(json.dumps(DEFAULTS))
     a = ss["wz"]
-    if not a.get("years"):                           # years come from the server preset (free to edit)
-        import presets as _pr
-        a["years"] = [{"id": str(y["id"]), "en": y.get("name", {}).get("en", y["id"]), "ar": y.get("name", {}).get("ar", y["id"])}
-                      for y in sorted(_pr.load().get("years", []), key=lambda y: y.get("order", 0))]
+    import presets as _pr
+    if a.get("preset") not in (None, _pr.CURRENT_ID) and not a.get("files"):   # school type changed: its own defaults
+        ss["wz"] = a = json.loads(json.dumps(DEFAULTS))
+    if a.get("preset") is None or not a.get("years"):  # years / tracks / counts come from the server preset (free to edit)
+        P = _pr.load()
+        nm = lambda x: (x.get("name") or {})
+        a["years"] = [{"id": str(y["id"]), "en": nm(y).get("en", y["id"]), "ar": nm(y).get("ar", y["id"])}
+                      for y in sorted(P.get("years", []), key=lambda y: y.get("order", 0))]
+        a["tracks"] = [{"id": tr["id"], "en": nm(tr).get("en", tr["id"]), "ar": nm(tr).get("ar", tr["id"]),
+                        "years": list(tr.get("years", []))} for tr in P.get("tracks", [])]
+        sc = P.get("wizard", {}).get("sample_counts")
+        if sc:
+            a["levels"] = dict(sc)
+        a["msq"] = bool(P.get("wizard", {}).get("middle_school_questions", True))
+        if P.get("teacher_defaults", {}).get("max_hours"):
+            a["base_hours"] = int(P["teacher_defaults"]["max_hours"])
+        if not a["msq"]:
+            a["info_levels"] = []
+            a["windows"] = {w["subject"]: int(w["day"]) for w in P.get("subject_unavailable", [])}
+        a["preset"] = _pr.CURRENT_ID
     a.setdefault("tracks", [])
     return a
 
@@ -272,9 +290,11 @@ def build_frames(a):
             _add.append(base[base["Level"] == y].assign(Level=k))
     if _add:
         base = pd.concat([base] + _add, ignore_index=True)
-    base = base[~base["Subject_Code"].isin(["MUSIC", "ART", "AMAZIGH", "INFO"])]
+    msq = a.get("msq", True)
+    if msq:
+        base = base[~base["Subject_Code"].isin(["MUSIC", "ART", "AMAZIGH", "INFO"])]
     extra = []
-    for l in LV:
+    for l in (LV if msq else []):
         if a["arts"] in ("music", "both"):
             extra.append((l, "MUSIC", a["music_h"], 0, 0, 0, "classroom"))
         if a["arts"] in ("art", "both"):
@@ -291,7 +311,7 @@ def build_frames(a):
         if "Required_Room_Type" not in cur:
             cur["Required_Room_Type"] = "classroom"
     cur = cur[cur["Level"].isin(active)]
-    if a["labs"] != "dedicated" and not a.get("curriculum"):
+    if msq and a["labs"] != "dedicated" and not a.get("curriculum"):
         cur.loc[cur["Subject_Code"].isin(["PHYS", "SCIENCE"]), "Required_Room_Type"] = "classroom"
     order = {s: i for i, s in enumerate(["ARABIC", "AMAZIGH", "ISLAMIC", "MATH", "FRENCH", "ENGLISH", "PHYS", "SCIENCE",
                                          "HISTGEO", "INFO", "MUSIC", "ART", "SPORT"])}
@@ -303,6 +323,9 @@ def build_frames(a):
     rooms = [("classroom", int(a["classrooms"])), ("gym", int(a["sport_cap"])), ("computer_lab", int(a["it_rooms"]))]
     if a["labs"] == "dedicated":
         rooms.append(("lab", int(a["n_labs"])))
+    if not a.get("msq", True):                          # room types of the preset not covered by the questions
+        have = {r for r, _ in rooms}
+        rooms += [(r["id"], int(r.get("count", 0))) for r in _pr.load().get("room_types", []) if r["id"] not in have]
     rooms = pd.DataFrame(rooms, columns=["Room_Type", "Capacity"])
 
     rules = []
@@ -325,6 +348,8 @@ def build_frames(a):
     if a["g_lang34"] and no_info:
         rules.append(("R_FOUJ_05", no_info, "FRENCH", "TD", 1, "ENGLISH", "TD", 1, 2,
                       "1h per week: group A French / group B English - groups swap next week"))
+    if not msq:
+        rules = []
     rules = pd.DataFrame(rules, columns=["Rule_ID", "Level", "Primary_Subject", "Primary_Type", "Primary_Hours",
                                          "Secondary_Subject", "Secondary_Type", "Secondary_Hours", "Frequency",
                                          "Description"])
@@ -333,6 +358,10 @@ def build_frames(a):
             "Description": f"{s} coordination"} for s, d in a["windows"].items()
            if s in subjects and d is not None and int(d) >= 0]
     windows = pd.DataFrame(win, columns=["Subject_Code", "Day_Index", "Blocked_Slots", "Description"])
+    if not msq:                                         # school type without the middle-school questions: preset tables
+        _r = _pr.rules_df()
+        _r = _r.assign(Level=_r["Level"].apply(lambda v: v if v == "ALL" else ";".join(x for x in str(v).split(";") if x in active)))
+        rules = _r[_r["Level"] != ""].reset_index(drop=True)
     out = {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows}
     for k in ("rooms", "rules", "inspections"):
         if file_of(a, k):
@@ -786,11 +815,11 @@ def _step_subjects(st, a, frames):
     cur_file = bool(a.get("curriculum"))
     if cur_file:
         st.info(t("wz_from_file", s=t("wz_sec_subjects"), f=a.get("curriculum_name", "?"), n=len(a["curriculum"])))
-    else:
+    elif a.get("msq", True):
         _optional_subjects(st, a)
     if not _file_banner(st, ss, a, "rooms"):
         _rooms_questions(st, a)
-    if not (cur_file and file_of(a, "rules")):
+    if not (cur_file and file_of(a, "rules")) and a.get("msq", True):
         _it_questions(st, a)
     frames = build_frames(a)
     with st.expander(t("wz_curr_preview")):
@@ -852,6 +881,10 @@ def _step_grouping(st, a, frames):
     if _file_banner(st, ss, a, "rules"):
         st.subheader(t("wz_rem_title"))
         a["rem_armath"] = st.checkbox(t("wz_rem_armath"), a["rem_armath"], key="wz_rem")
+        _rules_preview(st, build_frames(a))
+        return
+    if not a.get("msq", True):
+        st.caption(t("wz_rules_from_preset"))
         _rules_preview(st, build_frames(a))
         return
     st.subheader(t("wz_q_grouping"))
