@@ -101,22 +101,42 @@ i18n.S.update({
     "wz_tl_cols": ("The file needs at least the columns Name and Subject.", "يجب أن يحتوي الملف على العمودين Name و Subject على الأقل."),
     "wz_tl_apply": ("✅ Replace the list by {n} teachers", "✅ استبدال القائمة بـ {n} أستاذًا"),
     "wz_g_title": ("TD / TP in groups", "الأعمال الموجهة / التطبيقية بالأفواج"),
-    "wz_g_help": ("Every TD/TP is taught in 2 groups. For each one choose: div1 = 2 single-hour sessions (the same teacher "
-                  "teaches group 1 then group 2) · div2 = 2 sessions of 2 hours · pair = one 2-hour session where the 2 groups "
-                  "have two subjects at the same time and swap after 1 hour (choose the partner subject, same hours).",
-                  "كل حصة أعمال موجهة/تطبيقية تُدرَّس بفوجين. اختر لكل واحدة: div1 = حصتان من ساعة واحدة (نفس الأستاذ "
-                  "للفوج 1 ثم للفوج 2) · div2 = حصتان من ساعتين · pair = حصة واحدة من ساعتين يدرس فيها الفوجان مادتين "
-                  "في نفس الوقت ويتبادلان بعد ساعة (اختر المادة الشريكة، بنفس الساعات)."),
+    "wz_g_help": ("Every TD/TP is taught in 2 groups (A/B). Choose once per subject; it applies to all levels. "
+                  "Partner options need a partner subject with the same hours in the level.",
+                  "كل حصة أعمال موجهة/تطبيقية تُدرَّس بفوجين (أ/ب). اختر مرة واحدة لكل مادة، ويُطبَّق على كل المستويات. "
+                  "خيارات المادة الشريكة تحتاج مادة بنفس الساعات في المستوى."),
     "wz_g_none": ("The curriculum has no TD/TP hours.", "لا توجد ساعات أعمال موجهة/تطبيقية في المنهاج."),
     "wz_g_level": ("Level", "المستوى"), "wz_g_all": ("All levels", "كل المستويات"),
     "wz_g_c_level": ("Level", "المستوى"), "wz_g_c_hours": ("h / student", "سا / تلميذ"),
     "wz_g_c_mode": ("Grouping", "التفويج"), "wz_g_c_partner": ("Partner (pair)", "المادة الشريكة (pair)"),
-    "wz_g_m_div1": ("2 × 1h, same teacher", "2 × 1سا، نفس الأستاذ"),
-    "wz_g_m_div2": ("2 × 2h, same teacher", "2 × 2سا، نفس الأستاذ"),
-    "wz_g_m_pair": ("2h session, 2 subjects in parallel, swap after 1h", "حصة 2سا، مادتان بالتوازي، تبادل بعد ساعة"),
-    "wz_g_bad": ("{l} – {s} {ty}: the partner «{p}» is missing in this level, already used, or has different hours → taught as div1.",
-                 "{l} – {s} {ty}: المادة الشريكة «{p}» غير موجودة في هذا المستوى أو مستعملة أو بساعات مختلفة ← تُدرَّس div1."),
+    "wz_g_m_alt": ("One session – groups A/B alternate weeks", "حصة واحدة – الفوجان أ/ب بالتناوب أسبوعيًا"),
+    "wz_g_m_pair_alt": ("One session with a partner subject – swap next week", "حصة واحدة مع مادة شريكة – التبادل الأسبوع الموالي"),
+    "wz_g_m_div": ("Each group every week (2 sessions, same teacher)", "كل فوج كل أسبوع (حصتان، نفس الأستاذ)"),
+    "wz_g_m_pair": ("Double session with a partner – swap in the middle", "حصة مضاعفة مع مادة شريكة – التبادل في منتصفها"),
+    "wz_g_m_whole": ("Whole class (not divided)", "القسم كاملًا (بدون تفويج)"),
+    "wz_g_c_levels": ("Levels", "المستويات"),
+    "wz_g_mixed": ("✱ = the levels have different choices (see 'per level')", "✱ = اختيارات مختلفة حسب المستوى (انظر 'حسب المستوى')"),
+    "wz_g_per_level": ("Different choice for one level", "اختيار مختلف لمستوى معيّن"),
+    "wz_g_sum2": ("{p} pairs with a partner · {a} alternate-week sessions · {d} weekly per group · {w} whole class.",
+                  "{p} أزواج مع مادة شريكة · {a} حصص بالتناوب أسبوعيًا · {d} أسبوعية لكل فوج · {w} قسم كامل."),
+    "wz_g_bad": ("{l} – {s} {ty}: the partner «{p}» is missing in this level, already used, or has different hours → alternate weeks.",
+                 "{l} – {s} {ty}: المادة الشريكة «{p}» غير موجودة في هذا المستوى أو مستعملة أو بساعات مختلفة ← بالتناوب أسبوعيًا."),
     "wz_g_sum": ("{p} parallel pairs, {d} divided TD/TP.", "{p} أزواج متوازية، {d} حصص مقسَّمة."),
+    "wz_sf_title": ("📎 School files", "📎 ملفات المؤسسة"),
+    "wz_sf_help": ("Only two files are needed: the classes (streams and number of classes) and the staff (teachers per "
+                   "subject, regular and distinguished). The curriculum is the default one (step 2, editable).",
+                   "يكفي ملفان: الأفواج (الشعب وعدد الأفواج) والأساتذة (عدد الأساتذة لكل مادة، عاديون ومميزون). "
+                   "المنهاج هو المنهاج الافتراضي (الخطوة 2، قابل للتعديل)."),
+    "wz_sf_classes": ("Classes file", "ملف الأفواج"), "wz_sf_staff": ("Staff file", "ملف الأساتذة"),
+    "wz_sf_unknown": ("Row {r}: «{x}» not recognised – enter its classes below.", "السطر {r}: «{x}» غير معروف – أدخل أفواجه أدناه."),
+    "wz_sf_which": ("«{x}» ({n} classes): which option?", "«{x}» ({n} أفواج): أي اختيار؟"),
+    "wz_sf_subj": ("Staff row «{x}»: which subject?", "سطر الأساتذة «{x}»: أي مادة؟"),
+    "wz_sf_cls_ok": ("{f}: {n} classes detected – check them below.", "{f}: تم اكتشاف {n} فوجًا – تحقق منها أدناه."),
+    "wz_sf_stf_ok": ("{f}: {n} teachers detected ({r} regular + {d} distinguished).",
+                     "{f}: تم اكتشاف {n} أستاذًا ({r} عاديًا + {d} مميزًا)."),
+    "wz_sf_noteacher": ("No teacher of {s} in the staff file, but these streams need it: {l}.",
+                        "لا يوجد أستاذ {s} في ملف الأساتذة، لكن هذه الشعب تحتاجه: {l}."),
+    "wz_classes_n": ("Classes", "عدد الأفواج"),
     "wz_struct": ("🌳 Years and tracks (school structure)", "🌳 السنوات والشعب (هيكل المؤسسة)"),
     "wz_struct_help": ("Years: free number and names. Tracks: optional; list the years where each track exists (IDs separated "
                        "by ';'). A year with tracks gives one level per track (e.g. 2AS-SCI); classes = level × number.",
@@ -379,13 +399,13 @@ def build_frames(a):
             "Description": f"{s} coordination"} for s, d in a["windows"].items()
            if s in subjects and d is not None and int(d) >= 0]
     windows = pd.DataFrame(win, columns=["Subject_Code", "Day_Index", "Blocked_Slots", "Description"])
-    divided = pd.DataFrame(columns=["ID", "Levels", "Subject", "Type", "Groups", "Block"])
+    divided = pd.DataFrame(columns=["ID", "Levels", "Subject", "Type", "Groups", "Block", "Weeks"])
     if not msq:                                         # every TD/TP in 2 groups: pairs -> split rules, others divided
         g_rules, g_div, _ = grouping_tables(grouping_rows(a, cur, active))
         rules = pd.DataFrame(g_rules, columns=["Rule_ID", "Level", "Primary_Subject", "Primary_Type", "Primary_Hours",
                                                "Secondary_Subject", "Secondary_Type", "Secondary_Hours", "Frequency",
                                                "Description"])
-        divided = pd.DataFrame(g_div, columns=divided.columns)
+        divided = pd.DataFrame(g_div, columns=["ID", "Levels", "Subject", "Type", "Groups", "Block", "Weeks"])
     out = {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows, "divided": divided}
     for k in ("rooms", "rules", "inspections"):
         if file_of(a, k):
@@ -394,7 +414,12 @@ def build_frames(a):
 
 
 # ------------------------------------------------------------------ TD/TP grouping (every TD/TP is taught in 2 groups)
-GROUP_MODES = ["div1", "div2", "pair"]       # 2 × 1h sessions (same teacher) | 2 × 2h sessions | 2h session in parallel, swap
+GROUP_MODES = ["alt", "pair_alt", "div", "pair", "whole"]
+#  alt      : one session per week, the 2 groups alternate weeks (teacher h)
+#  pair_alt : one session, group A subject X / group B subject Y, swap the next week (each teacher h)
+#  div      : each group every week, same teacher (teacher 2h; the other group may have another TD at that time)
+#  pair     : one session twice as long, 2 subjects in parallel, the groups swap in the middle (each teacher 2h)
+#  whole    : whole class, not divided
 
 
 def td_tp_items(cur, active):
@@ -410,13 +435,15 @@ def td_tp_items(cur, active):
 
 
 def grouping_rows(a, cur, active):
-    """Current choices for every TD/TP of the curriculum (previous choices kept, else preset suggestions)."""
+    """Current choice for every TD/TP of the curriculum (manager's choices kept, else preset defaults/suggestions)."""
     import presets as _pr
+    W = _pr.load().get("wizard", {})
+    dflt = W.get("grouping_default", "div")
     items = td_tp_items(cur, active)
     prev = {(g["Level"], g["Subject"], g["Type"]): g for g in a.get("grouping") or []}
     have = {(i["Level"], i["Subject"], i["Type"]): i for i in items}
     sugg = {}
-    for s1, t1, s2, t2 in _pr.load().get("wizard", {}).get("grouping_pairs", []):
+    for s1, t1, s2, t2 in W.get("grouping_pairs", []):
         for lv in active:
             i1, i2 = have.get((lv, s1, t1)), have.get((lv, s2, t2))
             if i1 and i2 and i1["Hours"] == i2["Hours"] and (lv, s1, t1) not in sugg and (lv, s2, t2) not in sugg:
@@ -425,39 +452,53 @@ def grouping_rows(a, cur, active):
     for k, i in have.items():
         p = prev.get(k)
         if p:
-            rows.append({**i, "Mode": p.get("Mode", "div1"), "Partner": p.get("Partner", "")})
+            rows.append({**i, "Mode": p.get("Mode", dflt), "Partner": p.get("Partner", "")})
         elif k in sugg:
             rows.append({**i, "Mode": "pair", "Partner": sugg[k]})
         else:
-            rows.append({**i, "Mode": "div1", "Partner": ""})
+            rows.append({**i, "Mode": dflt, "Partner": ""})
     return rows
 
 
 def grouping_tables(rows):
-    """choices -> (split rules for the pairs, divided-lesson table for the rest, problems)."""
+    """choices -> (split rules for pairs, divided-lesson rows, problems [(level, subject, type, partner)])."""
     by = {(r["Level"], r["Subject"], r["Type"]): r for r in rows}
     done, rules, div, probs = set(), [], [], []
     for r in rows:
         k = (r["Level"], r["Subject"], r["Type"])
-        if k in done or r["Mode"] != "pair":
+        if k in done or r["Mode"] not in ("pair", "pair_alt"):
             continue
         ps = str(r.get("Partner") or "").split()
         pk = (r["Level"], ps[0], ps[1]) if len(ps) == 2 else None
         p = by.get(pk) if pk else None
         if not p or pk in done or p["Hours"] != r["Hours"] or pk == k:
             probs.append((r["Level"], r["Subject"], r["Type"], r.get("Partner", "")))
+            r = {**r, "Mode": "alt"}                     # falls back to alternate weeks
+            by[k] = r
             continue
+        f = 1 if r["Mode"] == "pair" else 2
         rules.append((f"G_{r['Level']}_{r['Subject']}_{p['Subject']}", r["Level"], r["Subject"], r["Type"], r["Hours"],
-                      p["Subject"], p["Type"], str(r["Hours"]), 1,
-                      f"2 groups in parallel: {r['Subject']} {r['Type']} / {p['Subject']} {p['Type']}, swap"))
+                      p["Subject"], p["Type"], str(r["Hours"]), f,
+                      f"2 groups in parallel: {r['Subject']} {r['Type']} / {p['Subject']} {p['Type']}, swap "
+                      + ("in the session" if f == 1 else "next week")))
         done |= {k, pk}
-    for r in rows:
-        k = (r["Level"], r["Subject"], r["Type"])
-        if k in done:
+    for k, r in by.items():
+        if k in done or r["Mode"] == "whole":
             continue
+        mode = r["Mode"] if r["Mode"] in ("alt", "div") else "alt"
         div.append({"ID": f"D_{r['Level']}_{r['Subject']}_{r['Type']}", "Levels": r["Level"], "Subject": r["Subject"],
-                    "Type": r["Type"], "Groups": "2", "Block": "2" if r["Mode"] == "div2" and r["Hours"] >= 2 else "1"})
+                    "Type": r["Type"], "Groups": "2", "Block": str(r["Hours"]) if mode == "alt" else "1",
+                    "Weeks": "2" if mode == "alt" else "1"})
     return rules, div, probs
+
+
+def teacher_hours(rows):
+    """Weekly teacher hours created by one class for each (subject, type) choice."""
+    out = {}
+    for r in rows:
+        h = int(r["Hours"])
+        out[(r["Level"], r["Subject"], r["Type"])] = h if r["Mode"] in ("alt", "pair_alt", "whole") else 2 * h
+    return out
 
 
 # ------------------------------------------------------------------ files -> sections
@@ -662,9 +703,12 @@ def suggest_counts(req, a, prev=None):
         p = prev.get(s)
         if not p:
             import presets as _pr
-            tc = (_pr.load().get("wizard", {}).get("teacher_counts") or {}).get(s)
+            tc = (a.get("teacher_counts") or {}).get(s) or \
+                (None if a.get("teacher_counts") else (_pr.load().get("wizard", {}).get("teacher_counts") or {}).get(s))
             if tc:
                 p = {"n": tc[0], "mum": tc[1] if len(tc) > 1 else 0, "rem": False}
+            elif a.get("teacher_counts"):               # staff file given: no teacher of this subject
+                p = {"n": 0, "mum": 0, "rem": False}
         n = int(p["n"]) if p else _min_teachers(req[req["Subject"] == s], a["base_hours"] - rem)
         rows.append({"Subject": s, "Needed": int(h), "n": n, "mum": int(p["mum"]) if p else 0,
                      "rem": bool(p["rem"]) if p else bool(rem)})
@@ -929,13 +973,118 @@ def _step_levels(st, a):
                             "years": [x.strip() for x in str(r.get("years", "")).replace(",", ";").split(";") if x.strip()]}
                            for r in td.fillna("").to_dict("records") if str(r["id"]).strip()]
             st.rerun()
+    if not a.get("msq", True):
+        _school_files(st, a)
     st.subheader(t("wz_q_levels"))
     keys = level_keys(a)
-    cols = st.columns(min(4, max(1, len(keys))))
-    for i, l in enumerate(keys):
-        a["levels"][l] = int(cols[i % len(cols)].number_input(t("wz_level", l=level_label(a, l)), 0, 30,
-                                                              int(a["levels"].get(l, 0)), key=f"wz_lv_{l}"))
+    lang = "ar" if i18n.is_ar() else "en"
+    for y in a.get("years", []):                         # one block per level, its streams side by side
+        ks = [(k, tr) for k, y_, tr in levels_of(a) if y_ == y["id"]]
+        st.markdown(f"**{y.get(lang) or y['id']}**")
+        cols = st.columns(min(4, max(1, len(ks))))
+        for i, (k, tr) in enumerate(ks):
+            lab = next((x.get(lang) or x["id"] for x in a.get("tracks", []) if x["id"] == tr), "") if tr else t("wz_classes_n")
+            a["levels"][k] = int(cols[i % len(cols)].number_input(lab, 0, 30, int(a["levels"].get(k, 0)), key=f"wz_lv_{k}"))
     st.info(t("wz_total_classes", n=sum(int(a["levels"].get(l, 0)) for l in keys)))
+    _staff_check(st, a)
+
+
+def _school_files(st, a):
+    """Classes file + staff file of the school: counts detected, unrecognised rows asked with a dropdown."""
+    import presets as _pr
+    import school_files as sf
+    ss = st.session_state
+    P = _pr.load()
+    st.subheader(t("wz_sf_title"))
+    st.caption(t("wz_sf_help"))
+    c1, c2 = st.columns(2)
+    fc = c1.file_uploader(t("wz_sf_classes"), type=["xlsx", "xls", "csv"], key="wz_sf_cls")
+    fs = c2.file_uploader(t("wz_sf_staff"), type=["xlsx", "xls", "csv"], key="wz_sf_stf")
+    if fc is not None and a.get("cls_file") != (fc.name, fc.size):
+        counts, probs = sf.read_classes(fc, P)
+        a["cls_file"], a["cls_counts"], a["cls_probs"] = (fc.name, fc.size), counts, probs
+        a["cls_fix"] = {}
+        _apply_class_counts(ss, a)
+    if fs is not None and a.get("stf_file") != (fs.name, fs.size):
+        cnt, probs = sf.read_staff(fs, P)
+        a["stf_file"], a["stf_counts"], a["stf_probs"] = (fs.name, fs.size), cnt, probs
+        a["stf_fix"] = {}
+        _apply_staff_counts(ss, a)
+    if a.get("cls_file"):
+        lang = "ar" if i18n.is_ar() else "en"
+        tr_name = {x["id"]: x.get(lang) or x["id"] for x in a.get("tracks", [])}
+        for p_ in a.get("cls_probs") or []:
+            ch = p_.get("choices") or [tr for k, y_, tr in levels_of(a) if y_ == p_.get("year") and tr]
+            if not ch:
+                st.warning(t("wz_sf_unknown", r=p_["row"], x=p_["text"]))
+                continue
+            k_ = str(p_["row"])
+            cur = a["cls_fix"].get(k_, p_.get("guess") or ch[0])
+            new = st.selectbox(t("wz_sf_which", x=p_["text"], n=p_["n"]), ch, index=ch.index(cur) if cur in ch else 0,
+                               key=f"wz_sf_fix_{k_}", format_func=lambda x: tr_name.get(x, x))
+            if new != a["cls_fix"].get(k_):
+                a["cls_fix"][k_] = new
+                _apply_class_counts(ss, a)
+                st.rerun()
+        st.success(t("wz_sf_cls_ok", f=a["cls_file"][0], n=sum(a["cls_counts"].values()) +
+                     sum(p_["n"] for p_ in a.get("cls_probs") or [] if str(p_["row"]) in a["cls_fix"])))
+    if a.get("stf_file"):
+        codes = [x["id"] for x in P.get("subjects", [])]
+        for p_ in a.get("stf_probs") or []:
+            k_ = str(p_["row"])
+            new = st.selectbox(t("wz_sf_subj", x=p_["text"]), ["—"] + codes, key=f"wz_sf_sfix_{k_}",
+                               format_func=lambda x: x if x == "—" else i18n.subj(x))
+            if new != "—" and new != a["stf_fix"].get(k_):
+                a["stf_fix"][k_] = new
+                _apply_staff_counts(ss, a)
+                st.rerun()
+        tc = a.get("teacher_counts") or {}
+        R_, D_ = sum(v[0] - v[1] for v in tc.values()), sum(v[1] for v in tc.values())
+        st.success(t("wz_sf_stf_ok", f=a["stf_file"][0], n=R_ + D_, r=R_, d=D_))
+
+
+def _apply_class_counts(ss, a):
+    lv = {k: 0 for k in level_keys(a)}
+    for k, n in (a.get("cls_counts") or {}).items():
+        lv[k] = lv.get(k, 0) + n
+    for p_ in a.get("cls_probs") or []:
+        ch = a.get("cls_fix", {}).get(str(p_["row"])) or p_.get("guess")
+        if ch and p_.get("year"):
+            lv[f"{p_['year']}-{ch}"] = lv.get(f"{p_['year']}-{ch}", 0) + p_["n"]
+    a["levels"] = lv
+    for k, n in lv.items():                              # prefill the number fields (set before they are drawn)
+        ss[f"wz_lv_{k}"] = int(n)
+
+
+def _apply_staff_counts(ss, a):
+    tc = {k: [r + d, d] for k, (r, d) in (a.get("stf_counts") or {}).items()}     # [total, distinguished]
+    for p_ in a.get("stf_probs") or []:
+        code = a.get("stf_fix", {}).get(str(p_["row"]))
+        if code:
+            r, d = (p_["nums"] + [0, 0])[:2]
+            o = tc.get(code, [0, 0]); tc[code] = [o[0] + r + d, o[1] + d]
+    a["teacher_counts"] = tc
+    ss.pop("wz_counts", None); ss.pop("wz_teachers", None); ss.pop("wz_assign", None)
+
+
+def _staff_check(st, a):
+    """Streams whose subjects have no teacher at all (e.g. a 3rd language or an engineering option)."""
+    tc = a.get("teacher_counts")
+    if not tc:
+        return
+    fam = family_of()
+    import presets as _pr
+    cur = _pr.curriculum_df()
+    miss = {}
+    for k in level_keys(a):
+        if int(a["levels"].get(k, 0)) <= 0:
+            continue
+        for sj in cur[cur["Level"] == k]["Subject_Code"]:
+            post = fam.get(sj, sj)
+            if int((tc.get(post) or [0])[0]) <= 0:
+                miss.setdefault(post, []).append(level_label(a, k))
+    for post, lvs in miss.items():
+        st.warning(t("wz_sf_noteacher", s=i18n.subj(post), l=", ".join(lvs)))
 
 
 def _step_subjects(st, a, frames):
@@ -1028,7 +1177,7 @@ def _step_grouping(st, a, frames):
 
 
 def _grouping_ui(st, a):
-    """Every TD/TP is taught in 2 groups; the manager only chooses how each one is grouped."""
+    """Every TD/TP is taught in 2 groups; one choice per subject and type (all levels), per level only if needed."""
     st.subheader(t("wz_g_title"))
     st.caption(t("wz_g_help"))
     fr = build_frames(a)
@@ -1037,29 +1186,58 @@ def _grouping_ui(st, a):
     if not rows:
         st.info(t("wz_g_none"))
         return
-    lv = st.selectbox(t("wz_g_level"), ["*"] + active, key="wz_g_lv",
-                      format_func=lambda x: t("wz_g_all") if x == "*" else level_label(a, x))
-    shown = [r for r in rows if lv == "*" or r["Level"] == lv]
-    opts = sorted({f"{r['Subject']} {r['Type']}" for r in rows})
-    df = pd.DataFrame(shown)
-    df.insert(1, "Name", [i18n.subj(x) for x in df["Subject"]])
-    df["Level"] = [level_label(a, x) for x in df["Level"]]
-    ed = st.data_editor(df[["Level", "Name", "Type", "Hours", "Mode", "Partner"]], hide_index=True, width="stretch",
-                        key=f"wz_g_ed_{lv}", disabled=["Level", "Name", "Type", "Hours"],
-                        column_config={"Level": st.column_config.TextColumn(t("wz_g_c_level")),
-                                       "Name": st.column_config.TextColumn(t("wz_c_subject")),
-                                       "Hours": st.column_config.NumberColumn(t("wz_g_c_hours")),
-                                       "Mode": st.column_config.SelectboxColumn(t("wz_g_c_mode"), options=GROUP_MODES,
-                                                                               required=True),
-                                       "Partner": st.column_config.SelectboxColumn(t("wz_g_c_partner"), options=[""] + opts)})
-    st.caption(" · ".join(f"**{m}** = {t('wz_g_m_' + m)}" for m in GROUP_MODES))
-    upd = {(r["Level"], r["Subject"], r["Type"]): {"Mode": e["Mode"] or "div1", "Partner": e["Partner"] or ""}
-           for r, (_, e) in zip(shown, ed.iterrows())}
-    a["grouping"] = [{**r, **upd.get((r["Level"], r["Subject"], r["Type"]), {})} for r in rows]
-    rules, div, probs = grouping_tables(a["grouping"])
+    mode_fmt = lambda m: t("wz_g_m_" + m)
+    # ---- one row per (subject, type): the choice of the majority of its levels
+    keys = list(dict.fromkeys((r["Subject"], r["Type"]) for r in rows))
+    opts = [""] + [f"{s_} {t_}" for s_, t_ in keys]
+    summ = []
+    for s_, t_ in keys:
+        rs = [r for r in rows if (r["Subject"], r["Type"]) == (s_, t_)]
+        modes = [r["Mode"] for r in rs]
+        m = max(set(modes), key=modes.count)
+        parts = [r["Partner"] for r in rs if r["Mode"] == m and r["Partner"]]
+        hs = sorted({int(r["Hours"]) for r in rs})
+        summ.append({"Subject": s_, "Type": t_, "Name": i18n.subj(s_), "Hours": "/".join(map(str, hs)),
+                     "Levels": len(rs), "Mode": mode_fmt(m), "Partner": max(set(parts), key=parts.count) if parts else "",
+                     "Mixed": "✱" if len(set(modes)) > 1 else ""})
+    df = pd.DataFrame(summ)
+    labels = [mode_fmt(m) for m in GROUP_MODES]
+    ed = st.data_editor(df[["Name", "Type", "Hours", "Levels", "Mode", "Partner", "Mixed"]], hide_index=True, width="stretch",
+                        key="wz_g_ed_all", disabled=["Name", "Type", "Hours", "Levels", "Mixed"],
+                        column_config={"Name": st.column_config.TextColumn(t("wz_c_subject")),
+                                       "Hours": st.column_config.TextColumn(t("wz_g_c_hours")),
+                                       "Levels": st.column_config.NumberColumn(t("wz_g_c_levels")),
+                                       "Mode": st.column_config.SelectboxColumn(t("wz_g_c_mode"), options=labels, required=True),
+                                       "Partner": st.column_config.SelectboxColumn(t("wz_g_c_partner"), options=opts),
+                                       "Mixed": st.column_config.TextColumn("✱", help=t("wz_g_mixed"))})
+    back = {mode_fmt(m): m for m in GROUP_MODES}
+    for (o, (_, e)) in zip(summ, ed.iterrows()):
+        nm, np_ = back.get(e["Mode"], "alt"), e["Partner"] or ""
+        if nm != back.get(o["Mode"]) or np_ != o["Partner"]:      # changed here -> applies to every level
+            for r in rows:
+                if (r["Subject"], r["Type"]) == (o["Subject"], o["Type"]):
+                    r["Mode"], r["Partner"] = nm, np_
+    # ---- per level (only when needed)
+    with st.expander(t("wz_g_per_level")):
+        lv = st.selectbox(t("wz_g_level"), active, key="wz_g_lv", format_func=lambda x: level_label(a, x))
+        shown = [r for r in rows if r["Level"] == lv]
+        d2 = pd.DataFrame(shown)
+        d2["Name"] = [i18n.subj(x) for x in d2["Subject"]]
+        d2["Mode"] = [mode_fmt(m) for m in d2["Mode"]]
+        e2 = st.data_editor(d2[["Name", "Type", "Hours", "Mode", "Partner"]], hide_index=True, width="stretch",
+                            key=f"wz_g_ed_{lv}", disabled=["Name", "Type", "Hours"],
+                            column_config={"Name": st.column_config.TextColumn(t("wz_c_subject")),
+                                           "Hours": st.column_config.NumberColumn(t("wz_g_c_hours")),
+                                           "Mode": st.column_config.SelectboxColumn(t("wz_g_c_mode"), options=labels, required=True),
+                                           "Partner": st.column_config.SelectboxColumn(t("wz_g_c_partner"), options=opts)})
+        for r, (_, e) in zip(shown, e2.iterrows()):
+            r["Mode"], r["Partner"] = back.get(e["Mode"], r["Mode"]), e["Partner"] or ""
+    a["grouping"] = rows
+    rules, div, probs = grouping_tables(rows)
     for lv_, s_, t_, p_ in probs:
         st.warning(t("wz_g_bad", l=level_label(a, lv_), s=i18n.subj(s_), ty=t_, p=p_ or "—"))
-    st.info(t("wz_g_sum", p=len(rules), d=len(div)))
+    st.info(t("wz_g_sum2", p=len(rules), a=sum(1 for d in div if d["Weeks"] == "2"), d=sum(1 for d in div if d["Weeks"] == "1"),
+              w=sum(1 for r in rows if r["Mode"] == "whole")))
 
 
 def _rules_preview(st, frames):

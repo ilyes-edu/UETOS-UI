@@ -22,7 +22,7 @@ def base(subject):
 
 def parts(subject):
     import re as _re
-    s = _re.sub(r"_G\d+$", "", str(subject))      # group of a divided lesson
+    s = _re.sub(r"_(G\d+|AB)$", "", str(subject))      # group of a divided lesson
     for suf in ("_TD/TP", "_Pract/TD", "_TD", "_TP"):
         s = s.replace(suf, "")
     return [p.upper() for p in s.split("+") if p]

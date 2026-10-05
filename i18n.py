@@ -57,6 +57,8 @@ def slot_label(i):
 def subj(code):
     """'MATH' -> 'رياضيات' ; 'SCIENCE+PHYSICS_TD/TP' -> 'علوم طبيعية + علوم فيزيائية (أ.م/أ.ت)'."""
     code = str(code)
+    if code.endswith("_AB"):                          # one session, the 2 groups alternate weeks
+        return subj(code[:-3]) + (" – فوج أ/ب بالتناوب" if LANG == "ar" else " – groups A/B alternate weeks")
     grp = re.search(r"_G(\d+)$", code)               # divided lesson: group number
     if grp:
         code = code[: grp.start()]
@@ -82,6 +84,8 @@ SHORT = {"ARABIC": ("ARA", "عربية"), "ISLAMIC": ("ISL", "إسلامية"), 
 def subj_short(code):
     """Compact subject name for dense tables: 'INFO+FRENCH_TD' -> 'إعلام/فرنسية'."""
     code = str(code)
+    if code.endswith("_AB"):
+        return subj_short(code[:-3]) + " A/B"
     grp = re.search(r"_G(\d+)$", code)
     if grp:
         return subj_short(code[: grp.start()]) + f" G{grp.group(1)}"

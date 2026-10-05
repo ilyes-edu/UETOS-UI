@@ -127,7 +127,7 @@ class SchoolDataLoader:
 def _base_subjects(subj_str):
     """'MATH_TD_G1' -> ['MATH'] ; 'ARABIC+MATH_TD/TP' -> ['ARABIC', 'MATH']."""
     import re as _re
-    x = _re.sub(r"_G\d+$", "", str(subj_str))
+    x = _re.sub(r"_(G\d+|AB)$", "", str(subj_str))
     for sfx in ('_TD/TP', '_Pract/TD', '_TD', '_TP'):
         x = x.replace(sfx, '')
     return x.split('+')
@@ -144,7 +144,7 @@ def lesson_group(l):
         return None
 
 
-DIVIDED_COLS = ["ID", "Levels", "Subject", "Type", "Groups", "Block"]
+DIVIDED_COLS = ["ID", "Levels", "Subject", "Type", "Groups", "Block", "Weeks"]
 
 
 def divided_rule(df_divided, level, subj):
@@ -164,7 +164,8 @@ def divided_rule(df_divided, level, subj):
             continue
         ty = str(r.get('Type') or 'TD').upper().replace(' ', '')
         types = {'TD': ['Hrs_TD'], 'TP': ['Hrs_TP'], 'TD+TP': ['Hrs_TD', 'Hrs_TP'], 'TP+TD': ['Hrs_TD', 'Hrs_TP']}.get(ty, ['Hrs_TD'])
-        return g, b, types
+        w = 2 if str(r.get('Weeks', '')).strip() in ('2', '2.0') else 1
+        return g, b, types, w
     return None
 
 class SchedulerConfig:
@@ -578,7 +579,7 @@ class SchoolSchedulerEngine:
         if not rule_applied:
             td_tp_hrs = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice'])
             dv = divided_rule(getattr(self.data, 'df_divided', None), c_lvl, subj_code)
-            if dv:                                   # each group gets the hours: the teacher teaches them groups times
+            if dv and dv[3] == 1:                    # each group every week: the teacher teaches them groups times
                 td_tp_hrs += (dv[0] - 1) * sum(int(s_row[k]) for k in dv[2])
         return hrs_cours + td_tp_hrs
 
@@ -684,15 +685,22 @@ class SchoolSchedulerEngine:
                 r_type = s_row['Required_Room_Type']
                 dv = None if subj in consumed_td_tp else divided_rule(self.data.df_divided, c_lvl, subj)
                 if dv:                                 # divided lesson: one lesson per group, same teacher, in turn
-                    g_n, blk, types = dv
+                    g_n, blk, types, weeks = dv
                     h_div = sum(int(s_row[k]) for k in types)
                     sfx = '_TP' if types == ['Hrs_TP'] else '_TD'
-                    for g in range(1, g_n + 1):
+                    for g in (range(1, g_n + 1) if weeks == 1 else []):
                         left = h_div
                         while left > 0:
                             d = min(blk, left)
                             self.lessons.append({'id': f"L_{l_idx}", 'class': c_id, 'teachers': [t_id], 'subject': f"{subj}{sfx}_G{g}",
                                                  'duration': d, 'rooms': {r_type: 1}, 'group': f"G{g}/{g_n}"})
+                            l_idx += 1; left -= d
+                    if weeks == 2:                     # one weekly session, the groups alternate weeks (A / B)
+                        left = h_div
+                        while left > 0:
+                            d = min(blk, left)
+                            self.lessons.append({'id': f"L_{l_idx}", 'class': c_id, 'teachers': [t_id], 'subject': f"{subj}{sfx}_AB",
+                                                 'duration': d, 'rooms': {r_type: 1}, 'alt_weeks': True})
                             l_idx += 1; left -= d
                     rest = int(s_row['Hrs_TD'] + s_row['Hrs_TP'] + s_row['Hrs_Practice']) - h_div
                     while rest > 0:
