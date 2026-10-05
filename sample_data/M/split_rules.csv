@@ -1,0 +1,5 @@
+Rule_ID,Level,Primary_Subject,Primary_Type,Primary_Hours,Secondary_Subject,Secondary_Type,Secondary_Hours,Frequency,Description
+R_FOUJ_01,1AM;2AM;3AM,ARABIC,TD,1,MATH,TD,1,2,1h per week: group A Arabic / group B Math - groups swap next week
+R_FOUJ_02,4AM,ARABIC,TD,1,MATH,TD,1,1,Every week: 2h block - groups swap after the first hour
+R_FOUJ_03,ALL,PHYS,TP,1,SCIENCE,TP,1,1,Every week: 2h lab block - groups swap after the first hour
+R_FOUJ_04,ALL,INFO,TP,2,FRENCH;ENGLISH,TD,1;1,2,2h per week: group A Informatics 2h / group B French 1h then English 1h - groups swap next week
