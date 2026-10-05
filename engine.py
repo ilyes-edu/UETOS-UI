@@ -133,6 +133,17 @@ def _base_subjects(subj_str):
     return x.split('+')
 
 
+def lesson_group(l):
+    """'G1/2' -> 1 for a lesson taught to one group of its class, None for a whole-class lesson."""
+    g = l.get('group')
+    if not g:
+        return None
+    try:
+        return int(str(g).split('/')[0].lstrip('Gg'))
+    except ValueError:
+        return None
+
+
 DIVIDED_COLS = ["ID", "Levels", "Subject", "Type", "Groups", "Block"]
 
 
@@ -207,6 +218,7 @@ class SchedulerConfig:
         self.remedial_gap_cost = 400            # remediation hour not preceded by a lesson of the teacher
         self.remedial_groups = []                   # from the preset's remedial template (e.g. ARABIC+MATH)
         self.same_day_exempt = []
+        self.group_idle_cost = 300                  # per hour where one group of a divided class has nothing
         self.joint_sessions = []                    # [{"id","classes":[..],"subjects":[..],"hours":h,"block":1|2}] shared sessions
         self.remedial_periods = None                # allowed remedial periods (None = last two); from the remedial template
         self.remedial_ends_day = True               # a remedial session before the last period ends the classes' day                   # subjects allowed twice a day in the editor check (preset)
@@ -321,13 +333,19 @@ class SchoolSchedulerEngine:
         teacher with more hours than his available cells.  -> [{"kind", "who", "need", "have"}]"""
         G, out = self.G, []
         cls_lv = dict(zip(self.data.df_classes['Class_ID'].astype(str), self.data.df_classes['Level'].astype(str)))
-        need_c, need_t = {}, {}
+        need_c, need_t, need_g = {}, {}, {}
         for l in self.lessons:
+            g = lesson_group(l)
             for c in {str(l['class'])} | {str(k) for k in l.get('blocks_classes', [])} | {str(k) for k in l.get('also_classes', [])}:
                 if c in cls_lv:
-                    need_c[c] = need_c.get(c, 0) + l['duration']
+                    if g is None:
+                        need_c[c] = need_c.get(c, 0) + l['duration']
+                    else:                              # groups of a class can be taught at the same time
+                        need_g.setdefault(c, {}); need_g[c][g] = need_g[c].get(g, 0) + l['duration']
             for tc in l['teachers']:
                 need_t[tc] = need_t.get(tc, 0) + l['duration']
+        for c, gs in need_g.items():
+            need_c[c] = need_c.get(c, 0) + max(gs.values())
         for c, n in need_c.items():
             have = sum(1 for d in range(G.days) for s_ in range(G.slots) if not G.is_off(d, s_, cls_lv[c]))
             if n > have:
@@ -986,13 +1004,35 @@ class SchoolSchedulerEngine:
         for d in range(self.config.days):
             for s in range(self.config.slots):
                 for c in classes:
-                    c_lessons = [self.x[l['id'], d, s - step] for l in self.lessons if l['class'] == c or c in l.get('also_classes', ())
-                                 for step in range(l['duration']) if (l['id'], d, s - step) in self.x]
+                    whole, grp = [], {}
+                    for l in self.lessons:
+                        if not (l['class'] == c or c in l.get('also_classes', ())):
+                            continue
+                        g = lesson_group(l)
+                        for step in range(l['duration']):
+                            if (l['id'], d, s - step) in self.x:
+                                (whole if g is None else grp.setdefault(g, [])).append(self.x[l['id'], d, s - step])
                     blockers = [self.x[l['id'], d, s] for l in self.lessons if c in l.get('blocks_classes', ()) and (l['id'], d, s) in self.x]
-                    expr = sum(c_lessons)
-                    self.model.Add(expr + sum(blockers) <= 1)      # remediation: all the unit's classes free
                     b = self.model.NewBoolVar(f"ca_{c}_{d}_{s}")
-                    self.model.Add(b == expr)
+                    if not grp:
+                        expr = sum(whole)
+                        self.model.Add(expr + sum(blockers) <= 1)      # remediation: all the unit's classes free
+                        self.model.Add(b == expr)
+                    else:                              # divided lessons: each group is busy once; groups may run in parallel
+                        for g_l in grp.values():
+                            self.model.Add(sum(whole) + sum(g_l) + sum(blockers) <= 1)
+                        parts = [sum(whole) + sum(g_l) for g_l in grp.values()]
+                        for p_ in parts:
+                            self.model.Add(b >= p_)
+                        self.model.Add(b <= sum(whole) + sum(sum(g_l) for g_l in grp.values()))
+                        if len(grp) >= 2:              # one group idle while the other works: discouraged
+                            busy = [self.model.NewBoolVar(f"gb_{c}_{d}_{s}_{k}") for k in range(len(parts))]
+                            for bv, p_ in zip(busy, parts):
+                                self.model.Add(bv == p_)
+                            idle = self.model.NewBoolVar(f"gi_{c}_{d}_{s}")
+                            for bv in busy:
+                                self.model.Add(idle >= b - bv)
+                            self.penalties.append(idle * getattr(self.config, 'group_idle_cost', 300))
                     self.class_active[c, d, s] = b
 
                 for t in teachers:
@@ -1063,7 +1103,11 @@ class SchoolSchedulerEngine:
                     subj_lessons = [l for l in c_lessons if subj in get_base_subjs(l['subject'])
                                     and not (l.get('chain_offset', 0) > 0 and l.get('chain_primary') == subj)]
                     is_course = lambda l: l['subject'] == subj
-                    for grp in ([l for l in subj_lessons if is_course(l)], [l for l in subj_lessons if not is_course(l)]):
+                    other = [l for l in subj_lessons if not is_course(l)]
+                    by_g = {}
+                    for l in other:                      # divided lessons: each group on its own (1 per group per day)
+                        by_g.setdefault(lesson_group(l), []).append(l)
+                    for grp in [[l for l in subj_lessons if is_course(l)]] + list(by_g.values()):
                         starts_today = [self.x[l['id'], d, s] for l in grp for s in range(self.config.slots) if (l['id'], d, s) in self.x]
                         if len(starts_today) > 1: self.model.Add(sum(starts_today) <= 1)
 
@@ -1404,7 +1448,8 @@ def repair(data, config, state, pins, fixed_assignment=None, time_limit=30, chan
     for p in pins:                                      # obvious contradictions between pins: same class/teacher, same hour
         l = by_id[p]
         for k in range(l['duration']):
-            for who in [l['class']] + list(l.get('blocks_classes', [])) + list(l.get('also_classes', [])) + list(l['teachers']):
+            _cl = f"{l['class']}#{lesson_group(l)}" if lesson_group(l) else l['class']
+            for who in [_cl] + list(l.get('blocks_classes', [])) + list(l.get('also_classes', [])) + list(l['teachers']):
                 key = (who, pos[p][0], pos[p][1] + k)
                 if key in occ and occ[key] != p and not (l.get('remedial') and by_id[occ[key]].get('remedial')
                                                           and who not in l['teachers']):

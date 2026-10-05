@@ -100,6 +100,23 @@ i18n.S.update({
     "wz_tl_up": ("Load a teacher list (Name, Subject, Mumayaz, Remedial, Max)", "تحميل قائمة أساتذة (Name, Subject, Mumayaz, Remedial, Max)"),
     "wz_tl_cols": ("The file needs at least the columns Name and Subject.", "يجب أن يحتوي الملف على العمودين Name و Subject على الأقل."),
     "wz_tl_apply": ("✅ Replace the list by {n} teachers", "✅ استبدال القائمة بـ {n} أستاذًا"),
+    "wz_g_title": ("TD / TP in groups", "الأعمال الموجهة / التطبيقية بالأفواج"),
+    "wz_g_help": ("Every TD/TP is taught in 2 groups. For each one choose: div1 = 2 single-hour sessions (the same teacher "
+                  "teaches group 1 then group 2) · div2 = 2 sessions of 2 hours · pair = one 2-hour session where the 2 groups "
+                  "have two subjects at the same time and swap after 1 hour (choose the partner subject, same hours).",
+                  "كل حصة أعمال موجهة/تطبيقية تُدرَّس بفوجين. اختر لكل واحدة: div1 = حصتان من ساعة واحدة (نفس الأستاذ "
+                  "للفوج 1 ثم للفوج 2) · div2 = حصتان من ساعتين · pair = حصة واحدة من ساعتين يدرس فيها الفوجان مادتين "
+                  "في نفس الوقت ويتبادلان بعد ساعة (اختر المادة الشريكة، بنفس الساعات)."),
+    "wz_g_none": ("The curriculum has no TD/TP hours.", "لا توجد ساعات أعمال موجهة/تطبيقية في المنهاج."),
+    "wz_g_level": ("Level", "المستوى"), "wz_g_all": ("All levels", "كل المستويات"),
+    "wz_g_c_level": ("Level", "المستوى"), "wz_g_c_hours": ("h / student", "سا / تلميذ"),
+    "wz_g_c_mode": ("Grouping", "التفويج"), "wz_g_c_partner": ("Partner (pair)", "المادة الشريكة (pair)"),
+    "wz_g_m_div1": ("2 × 1h, same teacher", "2 × 1سا، نفس الأستاذ"),
+    "wz_g_m_div2": ("2 × 2h, same teacher", "2 × 2سا، نفس الأستاذ"),
+    "wz_g_m_pair": ("2h session, 2 subjects in parallel, swap after 1h", "حصة 2سا، مادتان بالتوازي، تبادل بعد ساعة"),
+    "wz_g_bad": ("{l} – {s} {ty}: the partner «{p}» is missing in this level, already used, or has different hours → taught as div1.",
+                 "{l} – {s} {ty}: المادة الشريكة «{p}» غير موجودة في هذا المستوى أو مستعملة أو بساعات مختلفة ← تُدرَّس div1."),
+    "wz_g_sum": ("{p} parallel pairs, {d} divided TD/TP.", "{p} أزواج متوازية، {d} حصص مقسَّمة."),
     "wz_struct": ("🌳 Years and tracks (school structure)", "🌳 السنوات والشعب (هيكل المؤسسة)"),
     "wz_struct_help": ("Years: free number and names. Tracks: optional; list the years where each track exists (IDs separated "
                        "by ';'). A year with tracks gives one level per track (e.g. 2AS-SCI); classes = level × number.",
@@ -362,15 +379,85 @@ def build_frames(a):
             "Description": f"{s} coordination"} for s, d in a["windows"].items()
            if s in subjects and d is not None and int(d) >= 0]
     windows = pd.DataFrame(win, columns=["Subject_Code", "Day_Index", "Blocked_Slots", "Description"])
-    if not msq:                                         # school type without the middle-school questions: preset tables
-        _r = _pr.rules_df()
-        _r = _r.assign(Level=_r["Level"].apply(lambda v: v if v == "ALL" else ";".join(x for x in str(v).split(";") if x in active)))
-        rules = _r[_r["Level"] != ""].reset_index(drop=True)
-    out = {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows}
+    divided = pd.DataFrame(columns=["ID", "Levels", "Subject", "Type", "Groups", "Block"])
+    if not msq:                                         # every TD/TP in 2 groups: pairs -> split rules, others divided
+        g_rules, g_div, _ = grouping_tables(grouping_rows(a, cur, active))
+        rules = pd.DataFrame(g_rules, columns=["Rule_ID", "Level", "Primary_Subject", "Primary_Type", "Primary_Hours",
+                                               "Secondary_Subject", "Secondary_Type", "Secondary_Hours", "Frequency",
+                                               "Description"])
+        divided = pd.DataFrame(g_div, columns=divided.columns)
+    out = {"classes": classes, "subjects": cur, "rooms": rooms, "rules": rules, "inspections": windows, "divided": divided}
     for k in ("rooms", "rules", "inspections"):
         if file_of(a, k):
             out[k] = _file_df(a, k)
     return out
+
+
+# ------------------------------------------------------------------ TD/TP grouping (every TD/TP is taught in 2 groups)
+GROUP_MODES = ["div1", "div2", "pair"]       # 2 × 1h sessions (same teacher) | 2 × 2h sessions | 2h session in parallel, swap
+
+
+def td_tp_items(cur, active):
+    out = []
+    for r in cur.to_dict("records"):
+        if str(r["Level"]) not in active:
+            continue
+        for ty in ("TD", "TP"):
+            h = int(float(r.get("Hrs_" + ty, 0) or 0))
+            if h > 0:
+                out.append({"Level": str(r["Level"]), "Subject": r["Subject_Code"], "Type": ty, "Hours": h})
+    return out
+
+
+def grouping_rows(a, cur, active):
+    """Current choices for every TD/TP of the curriculum (previous choices kept, else preset suggestions)."""
+    import presets as _pr
+    items = td_tp_items(cur, active)
+    prev = {(g["Level"], g["Subject"], g["Type"]): g for g in a.get("grouping") or []}
+    have = {(i["Level"], i["Subject"], i["Type"]): i for i in items}
+    sugg = {}
+    for s1, t1, s2, t2 in _pr.load().get("wizard", {}).get("grouping_pairs", []):
+        for lv in active:
+            i1, i2 = have.get((lv, s1, t1)), have.get((lv, s2, t2))
+            if i1 and i2 and i1["Hours"] == i2["Hours"] and (lv, s1, t1) not in sugg and (lv, s2, t2) not in sugg:
+                sugg[(lv, s1, t1)] = f"{s2} {t2}"; sugg[(lv, s2, t2)] = f"{s1} {t1}"
+    rows = []
+    for k, i in have.items():
+        p = prev.get(k)
+        if p:
+            rows.append({**i, "Mode": p.get("Mode", "div1"), "Partner": p.get("Partner", "")})
+        elif k in sugg:
+            rows.append({**i, "Mode": "pair", "Partner": sugg[k]})
+        else:
+            rows.append({**i, "Mode": "div1", "Partner": ""})
+    return rows
+
+
+def grouping_tables(rows):
+    """choices -> (split rules for the pairs, divided-lesson table for the rest, problems)."""
+    by = {(r["Level"], r["Subject"], r["Type"]): r for r in rows}
+    done, rules, div, probs = set(), [], [], []
+    for r in rows:
+        k = (r["Level"], r["Subject"], r["Type"])
+        if k in done or r["Mode"] != "pair":
+            continue
+        ps = str(r.get("Partner") or "").split()
+        pk = (r["Level"], ps[0], ps[1]) if len(ps) == 2 else None
+        p = by.get(pk) if pk else None
+        if not p or pk in done or p["Hours"] != r["Hours"] or pk == k:
+            probs.append((r["Level"], r["Subject"], r["Type"], r.get("Partner", "")))
+            continue
+        rules.append((f"G_{r['Level']}_{r['Subject']}_{p['Subject']}", r["Level"], r["Subject"], r["Type"], r["Hours"],
+                      p["Subject"], p["Type"], str(r["Hours"]), 1,
+                      f"2 groups in parallel: {r['Subject']} {r['Type']} / {p['Subject']} {p['Type']}, swap"))
+        done |= {k, pk}
+    for r in rows:
+        k = (r["Level"], r["Subject"], r["Type"])
+        if k in done:
+            continue
+        div.append({"ID": f"D_{r['Level']}_{r['Subject']}_{r['Type']}", "Levels": r["Level"], "Subject": r["Subject"],
+                    "Type": r["Type"], "Groups": "2", "Block": "2" if r["Mode"] == "div2" and r["Hours"] >= 2 else "1"})
+    return rules, div, probs
 
 
 # ------------------------------------------------------------------ files -> sections
@@ -536,12 +623,34 @@ _REQ_CACHE = {}
 
 def needed_hours(frames):
     """Class × subject teacher hours (engine rules), one row per pair (memoised: it runs on every click)."""
-    key = "|".join(frames[k].to_csv(index=False) for k in ("classes", "subjects", "rules"))
+    import presets as _pr
+    key = _pr.CURRENT_ID + "|".join(frames[k].to_csv(index=False) for k in ("classes", "subjects", "rules", "divided")
+                                    if frames.get(k) is not None)
     if key not in _REQ_CACHE:
         if len(_REQ_CACHE) > 20:
             _REQ_CACHE.clear()
-        _REQ_CACHE[key] = ap.required_hours(ap.make_loader(frames))
+        _REQ_CACHE[key] = _families(ap.required_hours(ap.make_loader(frames)))
     return _REQ_CACHE[key].copy()
+
+
+def family_of():
+    """{subject: teacher post subject} from the preset (one post teaches several subjects)."""
+    import presets as _pr
+    return {s: f for f, ss in (_pr.load().get("teacher_families") or {}).items() for s in ss}
+
+
+def _families(req):
+    fam = family_of()
+    if not fam or req.empty:
+        return req
+    r = req.copy()
+    r["Parts"] = [f"{s}:{h}" for s, h in zip(r["Subject"], r["Hours"])]
+    r["Subject"] = r["Subject"].map(lambda s: fam.get(s, s))
+    agg = r.groupby(["Class", "Subject"], sort=False).agg(Hours=("Hours", "sum"), Parts=("Parts", ";".join)).reset_index()
+    extra = [c for c in req.columns if c not in ("Class", "Subject", "Hours")]
+    for c in extra:                                    # keep the other columns (first value)
+        agg[c] = r.groupby(["Class", "Subject"], sort=False)[c].first().values
+    return agg
 
 
 def suggest_counts(req, a, prev=None):
@@ -551,6 +660,11 @@ def suggest_counts(req, a, prev=None):
     for s, h in req.groupby("Subject")["Hours"].sum().items():
         rem = a["rem_hours"] if s in ("ARABIC", "MATH", "FRENCH") else 0
         p = prev.get(s)
+        if not p:
+            import presets as _pr
+            tc = (_pr.load().get("wizard", {}).get("teacher_counts") or {}).get(s)
+            if tc:
+                p = {"n": tc[0], "mum": tc[1] if len(tc) > 1 else 0, "rem": False}
         n = int(p["n"]) if p else _min_teachers(req[req["Subject"] == s], a["base_hours"] - rem)
         rows.append({"Subject": s, "Needed": int(h), "n": n, "mum": int(p["mum"]) if p else 0,
                      "rem": bool(p["rem"]) if p else bool(rem)})
@@ -656,8 +770,18 @@ def to_plan(req, assign, teachers, a):
             c_, s_ = k_.split("|", 1)
             if (c_, s_) in hours:
                 hours[(c_, s_)] = int(h_)
-    rows = [{"Teacher": n, "Post": n, "Class": c, "Subject": s, "Hours": hours[(c, s)]}
-            for (c, s), n in assign.items() if n and (c, s) in hours]
+    parts = {(r.Class, r.Subject): r.Parts for r in req.itertuples()} if "Parts" in req.columns else {}
+    rows = []
+    for (c, s), n in assign.items():
+        if not n or (c, s) not in hours:
+            continue
+        pr = parts.get((c, s))
+        if isinstance(pr, str) and pr:                 # a teacher post covering several subjects -> real subjects
+            for it in pr.split(";"):
+                s_, h_ = it.rsplit(":", 1)
+                rows.append({"Teacher": n, "Post": n, "Class": c, "Subject": s_, "Hours": int(h_)})
+        else:
+            rows.append({"Teacher": n, "Post": n, "Class": c, "Subject": s, "Hours": hours[(c, s)]})
     by = {tr["Name"]: tr for tr in teachers}
     used = {r["Teacher"] for r in rows}
     rem = {n: int(a["rem_hours"]) for n in used if by[n]["Remedial"] and int(a["rem_hours"]) > 0}
@@ -888,8 +1012,7 @@ def _step_grouping(st, a, frames):
         _rules_preview(st, build_frames(a))
         return
     if not a.get("msq", True):
-        st.caption(t("wz_rules_from_preset"))
-        _rules_preview(st, build_frames(a))
+        _grouping_ui(st, a)
         return
     st.subheader(t("wz_q_grouping"))
     a["g_armath"] = st.checkbox(t("wz_g_armath"), a["g_armath"], key="wz_gam", help=t("wz_g_armath_h"))
@@ -902,6 +1025,41 @@ def _step_grouping(st, a, frames):
     st.subheader(t("wz_rem_title"))
     a["rem_armath"] = st.checkbox(t("wz_rem_armath"), a["rem_armath"], key="wz_rem")
     _rules_preview(st, build_frames(a))
+
+
+def _grouping_ui(st, a):
+    """Every TD/TP is taught in 2 groups; the manager only chooses how each one is grouped."""
+    st.subheader(t("wz_g_title"))
+    st.caption(t("wz_g_help"))
+    fr = build_frames(a)
+    active = list(dict.fromkeys(fr["classes"]["Level"].astype(str)))
+    rows = grouping_rows(a, fr["subjects"], active)
+    if not rows:
+        st.info(t("wz_g_none"))
+        return
+    lv = st.selectbox(t("wz_g_level"), ["*"] + active, key="wz_g_lv",
+                      format_func=lambda x: t("wz_g_all") if x == "*" else level_label(a, x))
+    shown = [r for r in rows if lv == "*" or r["Level"] == lv]
+    opts = sorted({f"{r['Subject']} {r['Type']}" for r in rows})
+    df = pd.DataFrame(shown)
+    df.insert(1, "Name", [i18n.subj(x) for x in df["Subject"]])
+    df["Level"] = [level_label(a, x) for x in df["Level"]]
+    ed = st.data_editor(df[["Level", "Name", "Type", "Hours", "Mode", "Partner"]], hide_index=True, width="stretch",
+                        key=f"wz_g_ed_{lv}", disabled=["Level", "Name", "Type", "Hours"],
+                        column_config={"Level": st.column_config.TextColumn(t("wz_g_c_level")),
+                                       "Name": st.column_config.TextColumn(t("wz_c_subject")),
+                                       "Hours": st.column_config.NumberColumn(t("wz_g_c_hours")),
+                                       "Mode": st.column_config.SelectboxColumn(t("wz_g_c_mode"), options=GROUP_MODES,
+                                                                               required=True),
+                                       "Partner": st.column_config.SelectboxColumn(t("wz_g_c_partner"), options=[""] + opts)})
+    st.caption(" · ".join(f"**{m}** = {t('wz_g_m_' + m)}" for m in GROUP_MODES))
+    upd = {(r["Level"], r["Subject"], r["Type"]): {"Mode": e["Mode"] or "div1", "Partner": e["Partner"] or ""}
+           for r, (_, e) in zip(shown, ed.iterrows())}
+    a["grouping"] = [{**r, **upd.get((r["Level"], r["Subject"], r["Type"]), {})} for r in rows]
+    rules, div, probs = grouping_tables(a["grouping"])
+    for lv_, s_, t_, p_ in probs:
+        st.warning(t("wz_g_bad", l=level_label(a, lv_), s=i18n.subj(s_), ty=t_, p=p_ or "—"))
+    st.info(t("wz_g_sum", p=len(rules), d=len(div)))
 
 
 def _rules_preview(st, frames):

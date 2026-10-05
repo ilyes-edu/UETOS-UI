@@ -323,7 +323,8 @@ def load_joint():
 data_frames["joint_sessions"] = load_joint()
 from engine import DIVIDED_COLS
 _dv = tables.load(DB, WS, "divided")
-data_frames["divided"] = _dv if _dv is not None else pd.DataFrame(columns=DIVIDED_COLS)
+data_frames["divided"] = _dv if _dv is not None else (data_frames["divided"] if data_frames.get("divided") is not None
+                                                      else pd.DataFrame(columns=DIVIDED_COLS))
 EXTRA_TABLES = {"availability": "teacher_availability.csv", "joint_sessions": "joint_sessions.csv",
                 "divided": "divided_lessons.csv", "level_week": "level_week.csv"}
 

@@ -54,9 +54,24 @@ class ScheduleEditor:
         """The class itself + every class a remediation session blocks."""
         return [l['class']] + list(l.get('also_classes', [])) + list(l.get('blocks_classes', []))
 
+    @staticmethod
+    def _ckey(l, cls):
+        """Occupancy key of a lesson in a class: the class, or 'class#g' for one group of a divided lesson."""
+        g = str(l.get('group') or '').split('/')[0].lstrip('Gg')
+        return f"{cls}#{g}" if g else cls
+
+    def _group_side(self, l, cls, c):
+        """Whole-class lesson: every group lesson of the class on cell c; group lesson: the whole-class lessons."""
+        if l.get('group'):
+            return set(self.class_occ.get((cls,) + c, set()))
+        out = set()
+        for g in self.groups_of.get(cls, ()):
+            out |= self.class_occ.get((f"{cls}#{g}",) + c, set())
+        return out
+
     def class_conflicts(self, l, c):
         """Lessons clashing with l on cell c for class reasons (remediation vs remediation is allowed)."""
-        out = set(self.class_occ.get((l['class'],) + c, set()))
+        out = set(self.class_occ.get((self._ckey(l, l['class']),) + c, set())) | self._group_side(l, l['class'], c)
         for k in l.get('also_classes', []):                 # joint session: every class of it
             out |= self.class_occ.get((k,) + c, set())
             out |= self.rem_occ.get((k,) + c, set())
@@ -72,9 +87,13 @@ class ScheduleEditor:
 
     def _index(self):
         self.class_occ, self.teacher_occ, self.rem_occ = {}, {}, {}
+        self.groups_of = {}
+        for l in self.L.values():
+            if l.get('group'):
+                self.groups_of.setdefault(l['class'], set()).add(str(l['group']).split('/')[0].lstrip('Gg'))
         for l in self.L.values():
             for c in self.cells(l):
-                self.class_occ.setdefault((l['class'],) + c, set()).add(l['id'])
+                self.class_occ.setdefault((self._ckey(l, l['class']),) + c, set()).add(l['id'])
                 for k in l.get('also_classes', []):
                     self.class_occ.setdefault((k,) + c, set()).add(l['id'])
                 for k in l.get('blocks_classes', []):
@@ -546,7 +565,13 @@ class ScheduleEditor:
         for key, ids in list(self.class_occ.items()) + list(self.teacher_occ.items()):
             if len(ids) > 1:
                 for i in ids:
-                    out.setdefault(i, t('e_c_double', w=C_(key[0]) if key in self.class_occ else key[0]))
+                    out.setdefault(i, t('e_c_double', w=C_(str(key[0]).split('#')[0]) if key in self.class_occ else key[0]))
+        for key, ids in self.class_occ.items():           # a group lesson against a whole-class lesson
+            if '#' in str(key[0]):
+                whole = self.class_occ.get((str(key[0]).split('#')[0],) + key[1:], set())
+                if whole and ids:
+                    for i in ids | whole:
+                        out.setdefault(i, t('e_c_double', w=C_(str(key[0]).split('#')[0])))
         for key, ids in self.rem_occ.items():
             clash = ids | self.class_occ.get(key, set())
             if self.class_occ.get(key):
@@ -627,5 +652,8 @@ class ScheduleEditor:
         v = []
         for key, ids in list(self.class_occ.items()) + list(self.teacher_occ.items()):
             if len(ids) > 1:
+                v.append(t("e_double", k=key))
+        for key, ids in self.class_occ.items():
+            if '#' in str(key[0]) and ids and self.class_occ.get((str(key[0]).split('#')[0],) + key[1:]):
                 v.append(t("e_double", k=key))
         return v
